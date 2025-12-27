@@ -11,6 +11,7 @@ import MyPosts from "./pages/MyPosts";
 import Requests from "./pages/Requests";
 import Profile from "./pages/Profile";
 import Notifications from "./pages/Notifications";
+import MapPage from "./pages/Map";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ const App = () => (
           <Route path="/requests" element={<Requests />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/notifications" element={<Notifications />} />
+          <Route path="/map" element={<MapPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
