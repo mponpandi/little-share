@@ -14,7 +14,213 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      items: {
+        Row: {
+          category: Database["public"]["Enums"]["item_category"]
+          condition: Database["public"]["Enums"]["item_condition"]
+          contact_number: string | null
+          created_at: string
+          description: string | null
+          donor_id: string
+          id: string
+          image_url: string | null
+          is_available: boolean
+          is_urgent: boolean
+          name: string
+          pickup_address: string | null
+          pickup_latitude: number | null
+          pickup_longitude: number | null
+          updated_at: string
+        }
+        Insert: {
+          category: Database["public"]["Enums"]["item_category"]
+          condition?: Database["public"]["Enums"]["item_condition"]
+          contact_number?: string | null
+          created_at?: string
+          description?: string | null
+          donor_id: string
+          id?: string
+          image_url?: string | null
+          is_available?: boolean
+          is_urgent?: boolean
+          name: string
+          pickup_address?: string | null
+          pickup_latitude?: number | null
+          pickup_longitude?: number | null
+          updated_at?: string
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["item_category"]
+          condition?: Database["public"]["Enums"]["item_condition"]
+          contact_number?: string | null
+          created_at?: string
+          description?: string | null
+          donor_id?: string
+          id?: string
+          image_url?: string | null
+          is_available?: boolean
+          is_urgent?: boolean
+          name?: string
+          pickup_address?: string | null
+          pickup_latitude?: number | null
+          pickup_longitude?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "items_donor_id_fkey"
+            columns: ["donor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean
+          message: string
+          related_item_id: string | null
+          related_request_id: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message: string
+          related_item_id?: string | null
+          related_request_id?: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string
+          related_item_id?: string | null
+          related_request_id?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_related_item_id_fkey"
+            columns: ["related_item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_related_request_id_fkey"
+            columns: ["related_request_id"]
+            isOneToOne: false
+            referencedRelation: "requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          address: string | null
+          avatar_url: string | null
+          city: string | null
+          created_at: string
+          full_name: string
+          id: string
+          latitude: number | null
+          longitude: number | null
+          mobile_number: string
+          updated_at: string
+          user_type: Database["public"]["Enums"]["user_type"]
+        }
+        Insert: {
+          address?: string | null
+          avatar_url?: string | null
+          city?: string | null
+          created_at?: string
+          full_name: string
+          id: string
+          latitude?: number | null
+          longitude?: number | null
+          mobile_number: string
+          updated_at?: string
+          user_type?: Database["public"]["Enums"]["user_type"]
+        }
+        Update: {
+          address?: string | null
+          avatar_url?: string | null
+          city?: string | null
+          created_at?: string
+          full_name?: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          mobile_number?: string
+          updated_at?: string
+          user_type?: Database["public"]["Enums"]["user_type"]
+        }
+        Relationships: []
+      }
+      requests: {
+        Row: {
+          created_at: string
+          id: string
+          item_id: string
+          message: string | null
+          receiver_id: string
+          status: Database["public"]["Enums"]["request_status"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item_id: string
+          message?: string | null
+          receiver_id: string
+          status?: Database["public"]["Enums"]["request_status"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item_id?: string
+          message?: string | null
+          receiver_id?: string
+          status?: Database["public"]["Enums"]["request_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "requests_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "requests_receiver_id_fkey"
+            columns: ["receiver_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +229,10 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      item_category: "clothing" | "school_supplies" | "electronics" | "other"
+      item_condition: "new" | "like_new" | "good" | "fair"
+      request_status: "pending" | "accepted" | "declined" | "completed"
+      user_type: "donor" | "receiver" | "both"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +359,11 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      item_category: ["clothing", "school_supplies", "electronics", "other"],
+      item_condition: ["new", "like_new", "good", "fair"],
+      request_status: ["pending", "accepted", "declined", "completed"],
+      user_type: ["donor", "receiver", "both"],
+    },
   },
 } as const
