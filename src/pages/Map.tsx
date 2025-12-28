@@ -80,10 +80,12 @@ const distanceFilters = [
 ];
 
 // Component to recenter map
-function RecenterMap({ lat, lng }: { lat: number; lng: number }) {
+function MapController({ lat, lng }: { lat: number; lng: number }) {
   const map = useMap();
   useEffect(() => {
-    map.setView([lat, lng], 13);
+    if (map) {
+      map.setView([lat, lng], 13);
+    }
   }, [lat, lng, map]);
   return null;
 }
@@ -340,20 +342,10 @@ export default function MapPage() {
               zoomControl={false}
             >
               <TileLayer url={tileUrl} attribution={tileAttribution} />
-
-              {/* Recenter on location change */}
-              <RecenterMap lat={userLocation.lat} lng={userLocation.lng} />
-
-              {/* User location marker */}
+              <MapController lat={userLocation.lat} lng={userLocation.lng} />
               <Marker position={[userLocation.lat, userLocation.lng]} icon={userLocationIcon}>
-                <Popup>
-                  <div className="text-center">
-                    <p className="font-semibold">You are here</p>
-                  </div>
-                </Popup>
+                <Popup>You are here</Popup>
               </Marker>
-
-              {/* Item markers */}
               {filteredItems.map((item) => (
                 <Marker
                   key={item.id}
