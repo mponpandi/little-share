@@ -1,9 +1,9 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { Home, Plus, FileText, MessageSquare, User } from "lucide-react";
+import { Home, Plus, MapPin, MessageSquare, User } from "lucide-react";
 
 const navItems = [
   { path: "/dashboard", icon: Home, label: "Home" },
-  { path: "/my-posts", icon: FileText, label: "My Posts" },
+  { path: "/map", icon: MapPin, label: "Nearby" },
   { path: "/add-item", icon: Plus, label: "Add", isCenter: true },
   { path: "/requests", icon: MessageSquare, label: "Requests" },
   { path: "/profile", icon: User, label: "Profile" },
