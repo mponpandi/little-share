@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 const loginSchema = z.object({
-  mobile: z.string().min(10, "Mobile number must be at least 10 digits"),
+  email: z.string().email("Please enter a valid email"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
@@ -40,7 +40,7 @@ export default function Auth() {
   const [dailyQuote] = useState(dailyQuotes[Math.floor(Math.random() * dailyQuotes.length)]);
 
   // Login state
-  const [loginMobile, setLoginMobile] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
 
   // Register state
@@ -111,7 +111,7 @@ export default function Auth() {
     e.preventDefault();
     
     try {
-      loginSchema.parse({ mobile: loginMobile, password: loginPassword });
+      loginSchema.parse({ email: loginEmail, password: loginPassword });
     } catch (error) {
       if (error instanceof z.ZodError) {
         toast.error(error.errors[0].message);
@@ -121,13 +121,13 @@ export default function Auth() {
 
     setIsLoading(true);
     const { error } = await supabase.auth.signInWithPassword({
-      email: `${loginMobile}@littleshare.app`,
+      email: loginEmail,
       password: loginPassword,
     });
 
     if (error) {
       toast.error(error.message === "Invalid login credentials" 
-        ? "Invalid mobile number or password" 
+        ? "Invalid email or password" 
         : error.message
       );
     }
@@ -156,7 +156,7 @@ export default function Auth() {
 
     setIsLoading(true);
     const { error } = await supabase.auth.signUp({
-      email: `${registerMobile}@littleshare.app`,
+      email: email,
       password: registerPassword,
       options: {
         emailRedirectTo: `${window.location.origin}/`,
@@ -168,7 +168,6 @@ export default function Auth() {
           city,
           latitude,
           longitude,
-          email,
         },
       },
     });
@@ -225,21 +224,21 @@ export default function Auth() {
             <Card className="border-0 shadow-card">
               <CardHeader>
                 <CardTitle className="font-heading">Welcome Back!</CardTitle>
-                <CardDescription>Enter your mobile and password to continue</CardDescription>
+                <CardDescription>Enter your email and password to continue</CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="login-mobile">Mobile Number</Label>
+                    <Label htmlFor="login-email">Email</Label>
                     <div className="relative">
-                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
-                        id="login-mobile"
-                        type="tel"
-                        placeholder="Enter your mobile number"
+                        id="login-email"
+                        type="email"
+                        placeholder="Enter your email"
                         className="pl-10"
-                        value={loginMobile}
-                        onChange={(e) => setLoginMobile(e.target.value)}
+                        value={loginEmail}
+                        onChange={(e) => setLoginEmail(e.target.value)}
                         required
                       />
                     </div>
