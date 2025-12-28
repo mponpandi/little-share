@@ -56,6 +56,7 @@ export default function AddItem() {
   const [isLoading, setIsLoading] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -67,6 +68,7 @@ export default function AddItem() {
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -123,12 +125,39 @@ export default function AddItem() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setImageFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result as string);
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const uploadImage = async (userId: string): Promise<string | null> => {
+    if (!imageFile) return null;
+
+    setImageUploading(true);
+    const fileExt = imageFile.name.split(".").pop();
+    const fileName = `${Date.now()}.${fileExt}`;
+    const filePath = `${userId}/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("item-images")
+      .upload(filePath, imageFile);
+
+    if (uploadError) {
+      console.error("Image upload failed:", uploadError);
+      setImageUploading(false);
+      return null;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from("item-images")
+      .getPublicUrl(filePath);
+
+    setImageUploading(false);
+    return urlData.publicUrl;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -142,6 +171,17 @@ export default function AddItem() {
 
     setIsLoading(true);
 
+    // Upload image first if present
+    let imageUrl: string | null = null;
+    if (imageFile) {
+      imageUrl = await uploadImage(user.id);
+      if (imageFile && !imageUrl) {
+        toast.error("Failed to upload image");
+        setIsLoading(false);
+        return;
+      }
+    }
+
     const { error } = await supabase.from("items").insert({
       donor_id: user.id,
       name: name.trim(),
@@ -153,7 +193,7 @@ export default function AddItem() {
       pickup_longitude: longitude,
       contact_number: contactNumber || null,
       is_urgent: isUrgent,
-      // Note: Image upload would need Supabase Storage - skipping for now
+      image_url: imageUrl,
     });
 
     if (error) {
@@ -191,6 +231,7 @@ export default function AddItem() {
                 setName("");
                 setDescription("");
                 setImagePreview(null);
+                setImageFile(null);
               }}
               className="text-white hover:bg-white/10"
             >
@@ -399,9 +440,9 @@ export default function AddItem() {
               <Button
                 type="submit"
                 className="w-full gradient-primary text-white py-6"
-                disabled={isLoading}
+                disabled={isLoading || imageUploading}
               >
-                {isLoading ? "Posting..." : "Share This Item 💝"}
+                {isLoading || imageUploading ? "Posting..." : "Share This Item 💝"}
               </Button>
             </form>
           </CardContent>

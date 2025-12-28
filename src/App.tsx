@@ -10,6 +10,10 @@ import AddItem from "./pages/AddItem";
 import MyPosts from "./pages/MyPosts";
 import Requests from "./pages/Requests";
 import Profile from "./pages/Profile";
+import EditProfile from "./pages/EditProfile";
+import Settings from "./pages/Settings";
+import Privacy from "./pages/Privacy";
+import Help from "./pages/Help";
 import Notifications from "./pages/Notifications";
 import MapPage from "./pages/Map";
 import ItemDetail from "./pages/ItemDetail";
@@ -31,6 +35,10 @@ const App = () => (
           <Route path="/my-posts" element={<MyPosts />} />
           <Route path="/requests" element={<Requests />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/edit-profile" element={<EditProfile />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/help" element={<Help />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/map" element={<MapPage />} />
           <Route path="/item/:id" element={<ItemDetail />} />
