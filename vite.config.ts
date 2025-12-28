@@ -17,10 +17,10 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-      leaflet: "leaflet/dist/leaflet-src.esm.js",
-    },
+    alias: [
+      { find: "@", replacement: path.resolve(__dirname, "./src") },
+      { find: /^leaflet$/, replacement: "leaflet/dist/leaflet-src.esm.js" },
+    ],
     dedupe: ["react", "react-dom"],
   },
 }));
