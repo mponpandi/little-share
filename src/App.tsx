@@ -12,6 +12,7 @@ import Requests from "./pages/Requests";
 import Profile from "./pages/Profile";
 import Notifications from "./pages/Notifications";
 import MapPage from "./pages/Map";
+import ItemDetail from "./pages/ItemDetail";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
           <Route path="/profile" element={<Profile />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/map" element={<MapPage />} />
+          <Route path="/item/:id" element={<ItemDetail />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
