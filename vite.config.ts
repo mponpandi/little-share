@@ -9,8 +9,10 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
-  // Avoid stale pre-bundled deps causing react-leaflet context crashes
+  // Ensure CJS deps like react-dom get ESM interop and invalidate stale optimize cache
   optimizeDeps: {
+    force: true,
+    include: ["react", "react-dom", "react-dom/client"],
     exclude: ["react-leaflet", "@react-leaflet/core", "leaflet"],
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
@@ -18,5 +20,6 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+    dedupe: ["react", "react-dom"],
   },
 }));
