@@ -9,16 +9,17 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
-  // Ensure CJS deps like react-dom get ESM interop and invalidate stale optimize cache
+  // Ensure CJS deps get ESM interop and invalidate stale optimize cache
   optimizeDeps: {
     force: true,
-    include: ["react", "react-dom", "react-dom/client"],
-    exclude: ["react-leaflet", "@react-leaflet/core", "leaflet"],
+    include: ["react", "react-dom", "react-dom/client", "leaflet"],
+    exclude: ["react-leaflet", "@react-leaflet/core"],
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      leaflet: "leaflet/dist/leaflet-src.esm.js",
     },
     dedupe: ["react", "react-dom"],
   },
