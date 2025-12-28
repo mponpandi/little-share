@@ -3,20 +3,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { BottomNav } from "@/components/BottomNav";
+import { NotificationSettings } from "@/components/NotificationSettings";
 import {
   ArrowLeft,
   Bell,
   Moon,
   Globe,
-  Vibrate,
   ChevronRight,
 } from "lucide-react";
 import { useState } from "react";
 
 export default function Settings() {
   const navigate = useNavigate();
-  const [pushNotifications, setPushNotifications] = useState(true);
-  const [emailNotifications, setEmailNotifications] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
   const [vibration, setVibration] = useState(true);
 
@@ -38,7 +36,7 @@ export default function Settings() {
       </div>
 
       <div className="px-4 -mt-4 space-y-4">
-        {/* Notifications */}
+        {/* Notifications Section */}
         <Card className="border-0 shadow-card">
           <CardHeader className="pb-2">
             <CardTitle className="font-heading text-lg flex items-center">
@@ -46,31 +44,8 @@ export default function Settings() {
               Notifications
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Push Notifications</p>
-                <p className="text-sm text-muted-foreground">
-                  Receive alerts for new requests
-                </p>
-              </div>
-              <Switch
-                checked={pushNotifications}
-                onCheckedChange={setPushNotifications}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Email Notifications</p>
-                <p className="text-sm text-muted-foreground">
-                  Get daily digest via email
-                </p>
-              </div>
-              <Switch
-                checked={emailNotifications}
-                onCheckedChange={setEmailNotifications}
-              />
-            </div>
+          <CardContent>
+            <NotificationSettings />
           </CardContent>
         </Card>
 
