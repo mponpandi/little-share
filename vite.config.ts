@@ -9,6 +9,10 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
+  // Avoid stale pre-bundled deps causing react-leaflet context crashes
+  optimizeDeps: {
+    exclude: ["react-leaflet", "@react-leaflet/core", "leaflet"],
+  },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
