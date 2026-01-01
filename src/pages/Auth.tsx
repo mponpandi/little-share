@@ -77,28 +77,65 @@ export default function Auth() {
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
-          setLatitude(position.coords.latitude);
-          setLongitude(position.coords.longitude);
+          const lat = position.coords.latitude;
+          const lon = position.coords.longitude;
+          
+          setLatitude(lat);
+          setLongitude(lon);
           
           // Reverse geocode to get address
           try {
             const response = await fetch(
-              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.coords.latitude}&lon=${position.coords.longitude}`
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1&zoom=18`
             );
             const data = await response.json();
             if (data.address) {
-              setAddress(data.display_name || "");
-              setCity(data.address.city || data.address.town || data.address.village || "");
+              // Build a more readable address from components
+              const addressParts = [];
+              if (data.address.house_number) addressParts.push(data.address.house_number);
+              if (data.address.road) addressParts.push(data.address.road);
+              if (data.address.neighbourhood) addressParts.push(data.address.neighbourhood);
+              if (data.address.suburb) addressParts.push(data.address.suburb);
+              
+              const formattedAddress = addressParts.length > 0 
+                ? addressParts.join(", ")
+                : data.display_name?.split(",").slice(0, 3).join(", ") || "";
+              
+              setAddress(formattedAddress);
+              setCity(
+                data.address.city || 
+                data.address.town || 
+                data.address.village || 
+                data.address.municipality ||
+                data.address.county ||
+                ""
+              );
+              toast.success("Location detected!");
+            } else {
+              toast.error("Could not get address details. Please enter manually.");
             }
           } catch (error) {
-            console.log("Could not reverse geocode");
+            console.log("Could not reverse geocode:", error);
+            toast.error("Could not get address. Please enter manually.");
           }
           setLocationLoading(false);
-          toast.success("Location detected!");
         },
         (error) => {
           setLocationLoading(false);
-          toast.error("Could not detect location. Please enter manually.");
+          let errorMessage = "Could not detect location. Please enter manually.";
+          if (error.code === error.PERMISSION_DENIED) {
+            errorMessage = "Location access denied. Please enable location permissions.";
+          } else if (error.code === error.POSITION_UNAVAILABLE) {
+            errorMessage = "Location unavailable. Please enter manually.";
+          } else if (error.code === error.TIMEOUT) {
+            errorMessage = "Location request timed out. Please try again.";
+          }
+          toast.error(errorMessage);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0
         }
       );
     } else {
