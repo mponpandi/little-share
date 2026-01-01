@@ -7,9 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Gift, Heart, User, MapPin, Phone, Lock, Mail, Sparkles, Users, HandHeart } from "lucide-react";
+import { Gift, Heart, User, MapPin, Phone, Lock, Mail, Sparkles, Users, HandHeart, Map } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
+import LocationPicker from "@/components/LocationPicker";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email"),
@@ -53,6 +54,15 @@ export default function Auth() {
   const [userType, setUserType] = useState<"donor" | "receiver" | "both">("both");
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
+
+  const handleLocationFromPicker = (lat: number, lng: number, newAddress: string, newCity: string) => {
+    setLatitude(lat);
+    setLongitude(lng);
+    setAddress(newAddress);
+    setCity(newCity);
+    toast.success("Location updated!");
+  };
 
   useEffect(() => {
     const checkSession = async () => {
@@ -416,17 +426,29 @@ export default function Auth() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label htmlFor="address">Address</Label>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={detectLocation}
-                        disabled={locationLoading}
-                        className="text-xs text-primary"
-                      >
-                        <MapPin className="w-3 h-3 mr-1" />
-                        {locationLoading ? "Detecting..." : "Auto-detect"}
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={detectLocation}
+                          disabled={locationLoading}
+                          className="text-xs text-primary"
+                        >
+                          <MapPin className="w-3 h-3 mr-1" />
+                          {locationLoading ? "Detecting..." : "Auto-detect"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowLocationPicker(true)}
+                          className="text-xs text-primary"
+                        >
+                          <Map className="w-3 h-3 mr-1" />
+                          Pick on Map
+                        </Button>
+                      </div>
                     </div>
                     <Input
                       id="address"
@@ -455,6 +477,15 @@ export default function Auth() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Location Picker Modal */}
+      <LocationPicker
+        open={showLocationPicker}
+        onOpenChange={setShowLocationPicker}
+        initialLat={latitude}
+        initialLng={longitude}
+        onLocationSelect={handleLocationFromPicker}
+      />
     </div>
   );
 }
