@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Check, X, MessageSquare, Clock, Phone, User } from "lucide-react";
+import { ArrowLeft, Check, X, MessageSquare, Clock, Phone, User, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { User as SupabaseUser } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { AIRequestAnalysis } from "@/components/AIRequestAnalysis";
 
 type Request = Database["public"]["Tables"]["requests"]["Row"] & {
   items?: {
@@ -38,12 +39,21 @@ const statusLabels: Record<string, string> = {
   completed: "Completed",
 };
 
+// Group requests by item for AI analysis
+type GroupedRequests = {
+  itemId: string;
+  itemName: string;
+  itemImage: string | null;
+  requests: Request[];
+};
+
 export default function Requests() {
   const navigate = useNavigate();
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [incomingRequests, setIncomingRequests] = useState<Request[]>([]);
   const [outgoingRequests, setOutgoingRequests] = useState<Request[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [aiAnalysisItem, setAiAnalysisItem] = useState<GroupedRequests | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -109,6 +119,7 @@ export default function Requests() {
       toast.error("Failed to accept request");
     } else {
       toast.success("Request accepted! Contact details shared.");
+      setAiAnalysisItem(null);
       if (user) fetchRequests(user.id);
     }
   };
@@ -126,6 +137,27 @@ export default function Requests() {
       if (user) fetchRequests(user.id);
     }
   };
+
+  // Group pending requests by item for AI analysis
+  const groupedPendingRequests = incomingRequests
+    .filter((r) => r.status === "pending")
+    .reduce((acc, request) => {
+      const itemId = request.item_id;
+      if (!acc[itemId]) {
+        acc[itemId] = {
+          itemId,
+          itemName: request.items?.name || "Unknown Item",
+          itemImage: request.items?.image_url || null,
+          requests: [],
+        };
+      }
+      acc[itemId].requests.push(request);
+      return acc;
+    }, {} as Record<string, GroupedRequests>);
+
+  const itemsWithMultipleRequests = Object.values(groupedPendingRequests).filter(
+    (group) => group.requests.length > 1
+  );
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -162,6 +194,48 @@ export default function Requests() {
           </TabsList>
 
           <TabsContent value="incoming" className="space-y-3">
+            {/* AI Analysis Section - shows when items have multiple pending requests */}
+            {itemsWithMultipleRequests.length > 0 && !aiAnalysisItem && (
+              <Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-accent/5 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-sm">AI Selection Available</h3>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      {itemsWithMultipleRequests.length} item(s) have multiple requests. Let AI help you choose the most genuine need.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {itemsWithMultipleRequests.map((group) => (
+                        <Button
+                          key={group.itemId}
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setAiAnalysisItem(group)}
+                          className="text-xs"
+                        >
+                          <Sparkles className="w-3 h-3 mr-1" />
+                          {group.itemName} ({group.requests.length} requests)
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            {/* AI Analysis Panel */}
+            {aiAnalysisItem && (
+              <AIRequestAnalysis
+                itemId={aiAnalysisItem.itemId}
+                itemName={aiAnalysisItem.itemName}
+                pendingRequestsCount={aiAnalysisItem.requests.length}
+                onSelectRequest={(requestId) => handleAccept(requestId, aiAnalysisItem.itemId)}
+                onClose={() => setAiAnalysisItem(null)}
+              />
+            )}
+
             {incomingRequests.length === 0 ? (
               <EmptyState message="No incoming requests yet" />
             ) : (
