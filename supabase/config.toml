@@ -3,3 +3,11 @@ project_id = "dqnsqpoyurgqbmswzbkh"
 [functions.analyze-requests]
 enabled = true
 verify_jwt = false
+
+[functions.send-push-notification]
+enabled = true
+verify_jwt = false
+
+[functions.get-vapid-key]
+enabled = true
+verify_jwt = false
