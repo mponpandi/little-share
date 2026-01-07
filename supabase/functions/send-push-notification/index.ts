@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import webPush from "https://esm.sh/web-push@3.6.7";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -62,12 +63,19 @@ serve(async (req) => {
     console.log(`Authenticated user ${callerId} requesting to send notifications`);
 
     if (!vapidPrivateKey || !vapidPublicKey) {
-      console.log("VAPID keys not configured, skipping push notifications");
+      console.error("VAPID keys not configured");
       return new Response(
-        JSON.stringify({ success: false, message: "VAPID keys not configured" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ success: false, error: "VAPID keys not configured" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Configure web-push with VAPID keys
+    webPush.setVapidDetails(
+      "mailto:support@donateconnect.app",
+      vapidPublicKey,
+      vapidPrivateKey
+    );
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const payload: PushPayload = await req.json();
@@ -127,11 +135,6 @@ serve(async (req) => {
     }
 
     // Authorization check: Verify the caller has permission to notify these users
-    // A user can only notify:
-    // 1. Users who have made requests on the caller's items (as an item donor)
-    // 2. Item donors for items the caller has requested (as a requester)
-    // 3. Themselves (for testing purposes)
-    
     const authorizedUserIds: string[] = [];
 
     for (const targetUserId of payload.user_ids) {
@@ -214,27 +217,57 @@ serve(async (req) => {
       );
     }
 
-    // For now, just log that we would send notifications
-    // Full Web Push encryption is complex - using a simpler approach
-    console.log(`Would send ${subscriptions.length} push notifications`);
-    console.log("Payload title:", payload.title);
-    console.log("Payload body length:", payload.body.length);
+    // Send actual push notifications using web-push library
+    const notificationPayload = JSON.stringify({
+      title: payload.title,
+      body: payload.body,
+      url: payload.url || "/",
+      icon: "/favicon.ico",
+    });
 
-    // Store in-app notifications in the database as fallback
+    let sentCount = 0;
+    const failedEndpoints: string[] = [];
+
     for (const subscription of subscriptions) {
-      console.log(`Notification would be sent to user ${subscription.user_id}`);
+      try {
+        const pushSubscription = {
+          endpoint: subscription.endpoint,
+          keys: {
+            p256dh: subscription.p256dh,
+            auth: subscription.auth,
+          },
+        };
+
+        await webPush.sendNotification(pushSubscription, notificationPayload);
+        sentCount++;
+        console.log(`Push notification sent to user ${subscription.user_id}`);
+      } catch (err: unknown) {
+        const error = err as { statusCode?: number; message?: string };
+        console.error(`Failed to send push to ${subscription.endpoint}:`, error);
+        failedEndpoints.push(subscription.endpoint);
+        
+        // Remove invalid/expired subscriptions (410 Gone or 404 Not Found)
+        if (error.statusCode === 410 || error.statusCode === 404) {
+          console.log(`Removing expired subscription: ${subscription.endpoint}`);
+          await supabase
+            .from("push_subscriptions")
+            .delete()
+            .eq("endpoint", subscription.endpoint);
+        }
+      }
     }
 
     // Audit log
-    console.log(`AUDIT: User ${callerId} sent notifications to ${authorizedUserIds.length} users at ${new Date().toISOString()}`);
+    console.log(`AUDIT: User ${callerId} sent ${sentCount}/${subscriptions.length} notifications at ${new Date().toISOString()}`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        sent: subscriptions.length,
+        sent: sentCount,
+        failed: failedEndpoints.length,
         authorized: authorizedUserIds.length,
         total: payload.user_ids.length,
-        message: "Notifications processed"
+        message: `${sentCount} notifications sent successfully`
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
