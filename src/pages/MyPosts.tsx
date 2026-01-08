@@ -76,6 +76,19 @@ export default function MyPosts() {
   };
 
   const handleAcceptRequest = async (requestId: string) => {
+    // Get the request to find item_id
+    const { data: request } = await supabase
+      .from("requests")
+      .select("item_id, receiver_id, items:item_id(name)")
+      .eq("id", requestId)
+      .single();
+
+    if (!request) {
+      toast.error("Request not found");
+      return;
+    }
+
+    // Accept the selected request
     const { error } = await supabase
       .from("requests")
       .update({ status: "accepted" })
@@ -83,11 +96,35 @@ export default function MyPosts() {
 
     if (error) {
       toast.error("Failed to accept request");
-    } else {
-      toast.success("Request accepted!");
-      setAiAnalysisItem(null);
-      if (user) fetchItems(user.id);
+      return;
     }
+
+    // Mark item as unavailable (exclusive matching)
+    await supabase
+      .from("items")
+      .update({ is_available: false })
+      .eq("id", request.item_id);
+
+    // Decline all other pending requests for this item
+    const { data: otherRequests } = await supabase
+      .from("requests")
+      .select("id, receiver_id, items:item_id(name)")
+      .eq("item_id", request.item_id)
+      .eq("status", "pending")
+      .neq("id", requestId);
+
+    if (otherRequests) {
+      for (const otherRequest of otherRequests) {
+        await supabase
+          .from("requests")
+          .update({ status: "declined" })
+          .eq("id", otherRequest.id);
+      }
+    }
+
+    toast.success("Request accepted! Item reserved for this receiver.");
+    setAiAnalysisItem(null);
+    if (user) fetchItems(user.id);
   };
 
   return (

@@ -114,6 +114,7 @@ export default function Requests() {
     // Get request and item details for notification
     const request = incomingRequests.find(r => r.id === requestId);
     
+    // Accept the selected request
     const { error } = await supabase
       .from("requests")
       .update({ status: "accepted" })
@@ -121,31 +122,58 @@ export default function Requests() {
 
     if (error) {
       toast.error("Failed to accept request");
-    } else {
-      toast.success("Request accepted! Contact details shared.");
-      setAiAnalysisItem(null);
-      
-      // Send notification to receiver
-      if (request && user) {
-        const { data: donorProfile } = await supabase
-          .from("profiles")
-          .select("full_name")
-          .eq("id", user.id)
-          .single();
-        
-        if (donorProfile) {
-          await notifyRequestAccepted(
-            request.receiver_id,
-            donorProfile.full_name,
-            request.items?.name || "Item",
-            itemId,
-            requestId
-          );
-        }
-      }
-      
-      if (user) fetchRequests(user.id);
+      return;
     }
+
+    // Mark item as unavailable (exclusive matching)
+    await supabase
+      .from("items")
+      .update({ is_available: false })
+      .eq("id", itemId);
+
+    // Decline all other pending requests for this item
+    const otherPendingRequests = incomingRequests.filter(
+      r => r.item_id === itemId && r.id !== requestId && r.status === "pending"
+    );
+    
+    for (const otherRequest of otherPendingRequests) {
+      await supabase
+        .from("requests")
+        .update({ status: "declined" })
+        .eq("id", otherRequest.id);
+      
+      // Notify other requesters their request was declined
+      await notifyRequestDeclined(
+        otherRequest.receiver_id,
+        otherRequest.items?.name || "Item",
+        otherRequest.item_id,
+        otherRequest.id
+      );
+    }
+
+    toast.success("Request accepted! Item is now reserved for this receiver.");
+    setAiAnalysisItem(null);
+    
+    // Send notification to accepted receiver
+    if (request && user) {
+      const { data: donorProfile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", user.id)
+        .single();
+      
+      if (donorProfile) {
+        await notifyRequestAccepted(
+          request.receiver_id,
+          donorProfile.full_name,
+          request.items?.name || "Item",
+          itemId,
+          requestId
+        );
+      }
+    }
+    
+    if (user) fetchRequests(user.id);
   };
 
   const handleDecline = async (requestId: string) => {
