@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
+import { notifyNewRequest } from "@/lib/notifications";
 
 type Item = {
   id: string;
@@ -128,11 +129,11 @@ const ItemDetail = () => {
 
     setSubmitting(true);
 
-    const { error } = await supabase.from("requests").insert({
+    const { data: requestData, error } = await supabase.from("requests").insert({
       item_id: item.id,
       receiver_id: userId,
       message: message || null,
-    });
+    }).select().single();
 
     if (error) {
       console.error("Error creating request:", error);
@@ -140,6 +141,24 @@ const ItemDetail = () => {
     } else {
       setRequestStatus("pending");
       toast({ title: "Request sent!", description: "The donor will be notified" });
+      
+      // Get current user's profile name for notification
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", userId)
+        .single();
+      
+      // Send notification to the donor
+      if (requestData && profile) {
+        await notifyNewRequest(
+          item.donor_id,
+          profile.full_name,
+          item.name,
+          item.id,
+          requestData.id
+        );
+      }
     }
 
     setSubmitting(false);

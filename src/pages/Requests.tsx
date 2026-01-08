@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { User as SupabaseUser } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { AIRequestAnalysis } from "@/components/AIRequestAnalysis";
+import { notifyRequestAccepted, notifyRequestDeclined } from "@/lib/notifications";
 
 type Request = Database["public"]["Tables"]["requests"]["Row"] & {
   items?: {
@@ -110,6 +111,9 @@ export default function Requests() {
   };
 
   const handleAccept = async (requestId: string, itemId: string) => {
+    // Get request and item details for notification
+    const request = incomingRequests.find(r => r.id === requestId);
+    
     const { error } = await supabase
       .from("requests")
       .update({ status: "accepted" })
@@ -120,11 +124,34 @@ export default function Requests() {
     } else {
       toast.success("Request accepted! Contact details shared.");
       setAiAnalysisItem(null);
+      
+      // Send notification to receiver
+      if (request && user) {
+        const { data: donorProfile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", user.id)
+          .single();
+        
+        if (donorProfile) {
+          await notifyRequestAccepted(
+            request.receiver_id,
+            donorProfile.full_name,
+            request.items?.name || "Item",
+            itemId,
+            requestId
+          );
+        }
+      }
+      
       if (user) fetchRequests(user.id);
     }
   };
 
   const handleDecline = async (requestId: string) => {
+    // Get request details for notification
+    const request = incomingRequests.find(r => r.id === requestId);
+    
     const { error } = await supabase
       .from("requests")
       .update({ status: "declined" })
@@ -134,6 +161,17 @@ export default function Requests() {
       toast.error("Failed to decline request");
     } else {
       toast.success("Request declined");
+      
+      // Send notification to receiver
+      if (request) {
+        await notifyRequestDeclined(
+          request.receiver_id,
+          request.items?.name || "Item",
+          request.item_id,
+          requestId
+        );
+      }
+      
       if (user) fetchRequests(user.id);
     }
   };

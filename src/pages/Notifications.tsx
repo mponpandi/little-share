@@ -3,16 +3,17 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Bell, Gift, Heart, Check, CheckCheck } from "lucide-react";
+import { ArrowLeft, Bell, Gift, Heart, Check, CheckCheck, X } from "lucide-react";
 import { User } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 
 type Notification = Database["public"]["Tables"]["notifications"]["Row"];
 
 const iconMap: Record<string, React.ElementType> = {
-  new_donation: Gift,
+  new_item: Gift,
   request_received: Heart,
   request_accepted: Check,
+  request_declined: X,
   default: Bell,
 };
 
@@ -32,6 +33,32 @@ export default function Notifications() {
       }
     });
   }, [navigate]);
+
+  // Real-time subscription for new notifications
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('notifications-page-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const newNotification = payload.new as Notification;
+          setNotifications((prev) => [newNotification, ...prev]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   const fetchNotifications = async (userId: string) => {
     setIsLoading(true);
@@ -67,6 +94,22 @@ export default function Notifications() {
       .eq("is_read", false);
 
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+  };
+
+  const handleNotificationClick = async (notification: Notification) => {
+    // Mark as read first
+    if (!notification.is_read) {
+      await markAsRead(notification.id);
+    }
+
+    // Navigate based on notification type and related data
+    if (notification.related_item_id) {
+      navigate(`/item/${notification.related_item_id}`);
+    } else if (notification.related_request_id) {
+      navigate("/requests");
+    } else {
+      // Default: just mark as read, no navigation
+    }
   };
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
@@ -114,7 +157,13 @@ export default function Notifications() {
       </div>
 
       <div className="px-4 -mt-4 space-y-3">
-        {notifications.length === 0 ? (
+        {isLoading ? (
+          <Card className="border-0 shadow-card">
+            <CardContent className="p-8 text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary mx-auto" />
+            </CardContent>
+          </Card>
+        ) : notifications.length === 0 ? (
           <Card className="border-0 shadow-card">
             <CardContent className="p-8 text-center">
               <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mx-auto mb-4">
@@ -126,13 +175,14 @@ export default function Notifications() {
         ) : (
           notifications.map((notification) => {
             const Icon = iconMap[notification.type] || iconMap.default;
+            const hasAction = notification.related_item_id || notification.related_request_id;
             return (
               <Card
                 key={notification.id}
-                className={`border-0 shadow-card cursor-pointer transition-all ${
+                className={`border-0 shadow-card cursor-pointer transition-all hover:shadow-lg ${
                   !notification.is_read ? "bg-primary/5" : ""
                 }`}
-                onClick={() => markAsRead(notification.id)}
+                onClick={() => handleNotificationClick(notification)}
               >
                 <CardContent className="p-4 flex items-start space-x-3">
                   <div
@@ -162,6 +212,9 @@ export default function Notifications() {
                     <p className="text-sm text-muted-foreground line-clamp-2 mt-0.5">
                       {notification.message}
                     </p>
+                    {hasAction && (
+                      <p className="text-xs text-primary mt-1">Tap to view →</p>
+                    )}
                   </div>
                   {!notification.is_read && (
                     <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-2" />
