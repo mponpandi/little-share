@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { User as SupabaseUser } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { AIRequestAnalysis } from "@/components/AIRequestAnalysis";
+import { ChatDialog } from "@/components/ChatDialog";
 import { notifyRequestAccepted, notifyRequestDeclined } from "@/lib/notifications";
 
 type Request = Database["public"]["Tables"]["requests"]["Row"] & {
@@ -19,10 +20,14 @@ type Request = Database["public"]["Tables"]["requests"]["Row"] & {
     name: string;
     image_url: string | null;
     category: string;
+    donor_id?: string;
   } | null;
   profiles?: {
     full_name: string;
     mobile_number: string;
+  } | null;
+  donor_profile?: {
+    full_name: string;
   } | null;
 };
 
@@ -70,18 +75,43 @@ export default function Requests() {
   const fetchRequests = async (userId: string) => {
     setIsLoading(true);
 
-    // Outgoing requests (as receiver)
+    // Outgoing requests (as receiver) - include donor info for messaging
     const { data: outgoing } = await supabase
       .from("requests")
       .select(`
         *,
-        items:item_id(id, name, image_url, category)
+        items:item_id(id, name, image_url, category, donor_id)
       `)
       .eq("receiver_id", userId)
       .order("created_at", { ascending: false });
 
     if (outgoing) {
-      setOutgoingRequests(outgoing as Request[]);
+      // Fetch donor profiles for accepted requests
+      const acceptedOutgoing = outgoing.filter(r => r.status === 'accepted');
+      const donorIds = acceptedOutgoing
+        .map(r => r.items?.donor_id)
+        .filter((id): id is string => !!id);
+      
+      let donorProfiles: Record<string, { full_name: string }> = {};
+      if (donorIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", donorIds);
+        if (profiles) {
+          donorProfiles = profiles.reduce((acc, p) => {
+            acc[p.id] = { full_name: p.full_name };
+            return acc;
+          }, {} as Record<string, { full_name: string }>);
+        }
+      }
+
+      const outgoingWithDonor = outgoing.map(r => ({
+        ...r,
+        donor_profile: r.items?.donor_id ? donorProfiles[r.items.donor_id] : null
+      }));
+      
+      setOutgoingRequests(outgoingWithDonor as Request[]);
     }
 
     // Incoming requests (as donor) - need to join through items
@@ -311,6 +341,7 @@ export default function Requests() {
                   request={request}
                   onAccept={() => handleAccept(request.id, request.item_id)}
                   onDecline={() => handleDecline(request.id)}
+                  currentUserId={user?.id || ""}
                 />
               ))
             )}
@@ -321,7 +352,7 @@ export default function Requests() {
               <EmptyState message="You haven't requested any items yet" />
             ) : (
               outgoingRequests.map((request) => (
-                <OutgoingRequestCard key={request.id} request={request} />
+                <OutgoingRequestCard key={request.id} request={request} currentUserId={user?.id || ""} />
               ))
             )}
           </TabsContent>
@@ -337,103 +368,155 @@ function IncomingRequestCard({
   request,
   onAccept,
   onDecline,
+  currentUserId,
 }: {
   request: Request;
   onAccept: () => void;
   onDecline: () => void;
+  currentUserId: string;
 }) {
+  const [chatOpen, setChatOpen] = useState(false);
   const item = request.items;
   const requester = request.profiles;
 
   return (
-    <Card className="border-0 shadow-card overflow-hidden">
-      <CardContent className="p-0">
-        <div className="flex">
-          <div className="w-24 h-24 bg-muted flex-shrink-0">
-            {item?.image_url ? (
-              <img src={item.image_url} alt={item?.name} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-2xl">📦</div>
-            )}
-          </div>
-          <div className="flex-1 p-3">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="font-semibold line-clamp-1">{item?.name}</h3>
-                <div className="flex items-center text-sm text-muted-foreground mt-1">
-                  <User className="w-3 h-3 mr-1" />
-                  <span>{requester?.full_name}</span>
-                </div>
-              </div>
-              <Badge className={statusColors[request.status]}>{statusLabels[request.status]}</Badge>
+    <>
+      <Card className="border-0 shadow-card overflow-hidden">
+        <CardContent className="p-0">
+          <div className="flex">
+            <div className="w-24 h-24 bg-muted flex-shrink-0">
+              {item?.image_url ? (
+                <img src={item.image_url} alt={item?.name} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-2xl">📦</div>
+              )}
             </div>
-
-            {request.message && (
-              <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{request.message}</p>
-            )}
-
-            {request.status === "pending" && (
-              <div className="flex space-x-2 mt-3">
-                <Button size="sm" onClick={onAccept} className="flex-1 gradient-accent text-white">
-                  <Check className="w-4 h-4 mr-1" />
-                  Accept
-                </Button>
-                <Button size="sm" variant="outline" onClick={onDecline} className="flex-1">
-                  <X className="w-4 h-4 mr-1" />
-                  Decline
-                </Button>
+            <div className="flex-1 p-3">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="font-semibold line-clamp-1">{item?.name}</h3>
+                  <div className="flex items-center text-sm text-muted-foreground mt-1">
+                    <User className="w-3 h-3 mr-1" />
+                    <span>{requester?.full_name}</span>
+                  </div>
+                </div>
+                <Badge className={statusColors[request.status]}>{statusLabels[request.status]}</Badge>
               </div>
-            )}
 
-            {request.status === "accepted" && requester?.mobile_number && (
-              <div className="flex items-center mt-3 p-2 bg-teal/10 rounded-lg">
-                <Phone className="w-4 h-4 text-teal mr-2" />
-                <a href={`tel:${requester.mobile_number}`} className="text-sm text-teal font-medium">
-                  {requester.mobile_number}
-                </a>
-              </div>
-            )}
+              {request.message && (
+                <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{request.message}</p>
+              )}
+
+              {request.status === "pending" && (
+                <div className="flex space-x-2 mt-3">
+                  <Button size="sm" onClick={onAccept} className="flex-1 gradient-accent text-white">
+                    <Check className="w-4 h-4 mr-1" />
+                    Accept
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={onDecline} className="flex-1">
+                    <X className="w-4 h-4 mr-1" />
+                    Decline
+                  </Button>
+                </div>
+              )}
+
+              {request.status === "accepted" && (
+                <div className="flex items-center gap-2 mt-3">
+                  {requester?.mobile_number && (
+                    <a 
+                      href={`tel:${requester.mobile_number}`} 
+                      className="flex items-center p-2 bg-teal/10 rounded-lg flex-1"
+                    >
+                      <Phone className="w-4 h-4 text-teal mr-2" />
+                      <span className="text-sm text-teal font-medium">{requester.mobile_number}</span>
+                    </a>
+                  )}
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => setChatOpen(true)}
+                    className="flex-shrink-0"
+                  >
+                    <MessageSquare className="w-4 h-4 mr-1" />
+                    Chat
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      <ChatDialog
+        open={chatOpen}
+        onOpenChange={setChatOpen}
+        requestId={request.id}
+        itemName={item?.name || "Item"}
+        otherUserName={requester?.full_name || "User"}
+        currentUserId={currentUserId}
+      />
+    </>
   );
 }
 
-function OutgoingRequestCard({ request }: { request: Request }) {
+function OutgoingRequestCard({ request, currentUserId }: { request: Request; currentUserId: string }) {
+  const [chatOpen, setChatOpen] = useState(false);
   const item = request.items;
+  const donorName = request.donor_profile?.full_name || "Donor";
 
   return (
-    <Card className="border-0 shadow-card overflow-hidden">
-      <CardContent className="p-0">
-        <div className="flex">
-          <div className="w-24 h-24 bg-muted flex-shrink-0">
-            {item?.image_url ? (
-              <img src={item.image_url} alt={item?.name} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-2xl">📦</div>
-            )}
-          </div>
-          <div className="flex-1 p-3">
-            <div className="flex items-start justify-between">
-              <h3 className="font-semibold line-clamp-1">{item?.name}</h3>
-              <Badge className={statusColors[request.status]}>{statusLabels[request.status]}</Badge>
+    <>
+      <Card className="border-0 shadow-card overflow-hidden">
+        <CardContent className="p-0">
+          <div className="flex">
+            <div className="w-24 h-24 bg-muted flex-shrink-0">
+              {item?.image_url ? (
+                <img src={item.image_url} alt={item?.name} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-2xl">📦</div>
+              )}
             </div>
+            <div className="flex-1 p-3">
+              <div className="flex items-start justify-between">
+                <h3 className="font-semibold line-clamp-1">{item?.name}</h3>
+                <Badge className={statusColors[request.status]}>{statusLabels[request.status]}</Badge>
+              </div>
 
-            {request.message && (
-              <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{request.message}</p>
-            )}
+              {request.message && (
+                <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{request.message}</p>
+              )}
 
-            <div className="flex items-center text-xs text-muted-foreground mt-2">
-              <Clock className="w-3 h-3 mr-1" />
-              <span>
-                {new Date(request.created_at).toLocaleDateString()}
-              </span>
+              <div className="flex items-center justify-between mt-2">
+                <div className="flex items-center text-xs text-muted-foreground">
+                  <Clock className="w-3 h-3 mr-1" />
+                  <span>{new Date(request.created_at).toLocaleDateString()}</span>
+                </div>
+                
+                {request.status === "accepted" && (
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => setChatOpen(true)}
+                  >
+                    <MessageSquare className="w-4 h-4 mr-1" />
+                    Chat
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      <ChatDialog
+        open={chatOpen}
+        onOpenChange={setChatOpen}
+        requestId={request.id}
+        itemName={item?.name || "Item"}
+        otherUserName={donorName}
+        currentUserId={currentUserId}
+      />
+    </>
   );
 }
 
