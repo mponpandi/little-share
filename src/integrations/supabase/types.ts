@@ -305,7 +305,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      item_donor_id: { Args: { _item_id: string }; Returns: string }
     }
     Enums: {
       item_category: "clothing" | "school_supplies" | "electronics" | "other"
