@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      chat_presence: {
+        Row: {
+          created_at: string
+          id: string
+          is_online: boolean
+          last_seen: string
+          request_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_online?: boolean
+          last_seen?: string
+          request_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_online?: boolean
+          last_seen?: string
+          request_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_presence_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_presence_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       items: {
         Row: {
           category: Database["public"]["Enums"]["item_category"]
@@ -76,12 +121,66 @@ export type Database = {
           },
         ]
       }
+      live_locations: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          is_sharing: boolean
+          latitude: number
+          longitude: number
+          request_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          is_sharing?: boolean
+          latitude: number
+          longitude: number
+          request_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          is_sharing?: boolean
+          latitude?: number
+          longitude?: number
+          request_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_locations_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "live_locations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           content: string
           created_at: string
           id: string
           is_read: boolean
+          location_data: Json | null
+          media_url: string | null
+          message_type: string
           request_id: string
           sender_id: string
         }
@@ -90,6 +189,9 @@ export type Database = {
           created_at?: string
           id?: string
           is_read?: boolean
+          location_data?: Json | null
+          media_url?: string | null
+          message_type?: string
           request_id: string
           sender_id: string
         }
@@ -98,6 +200,9 @@ export type Database = {
           created_at?: string
           id?: string
           is_read?: boolean
+          location_data?: Json | null
+          media_url?: string | null
+          message_type?: string
           request_id?: string
           sender_id?: string
         }
