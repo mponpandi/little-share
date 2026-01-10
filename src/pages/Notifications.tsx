@@ -3,9 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Bell, Gift, Heart, Check, CheckCheck, X } from "lucide-react";
+import { ArrowLeft, Bell, Gift, Heart, Check, CheckCheck, X, MessageCircle } from "lucide-react";
 import { User } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { ChatDialog } from "@/components/ChatDialog";
 
 type Notification = Database["public"]["Tables"]["notifications"]["Row"];
 
@@ -14,6 +15,7 @@ const iconMap: Record<string, React.ElementType> = {
   request_received: Heart,
   request_accepted: Check,
   request_declined: X,
+  new_message: MessageCircle,
   default: Bell,
 };
 
@@ -22,6 +24,8 @@ export default function Notifications() {
   const [user, setUser] = useState<User | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [chatRequestId, setChatRequestId] = useState<string | null>(null);
+  const [chatPartner, setChatPartner] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -102,13 +106,51 @@ export default function Notifications() {
       await markAsRead(notification.id);
     }
 
+    // Handle new_message type - open chat dialog
+    if (notification.type === "new_message" && notification.related_request_id) {
+      // Fetch request details to get chat partner info
+      const { data: request } = await supabase
+        .from("requests")
+        .select(`
+          *,
+          item:items(donor_id, name),
+          receiver:profiles!requests_receiver_id_fkey(id, full_name)
+        `)
+        .eq("id", notification.related_request_id)
+        .single();
+
+      if (request) {
+        // Determine chat partner (the other participant)
+        const donorId = request.item?.donor_id;
+        if (user?.id === donorId) {
+          // Current user is donor, partner is receiver
+          setChatPartner({
+            id: request.receiver_id,
+            name: request.receiver?.full_name || "User",
+          });
+        } else {
+          // Current user is receiver, partner is donor - fetch donor profile
+          const { data: donorProfile } = await supabase
+            .from("profiles")
+            .select("id, full_name")
+            .eq("id", donorId)
+            .single();
+
+          setChatPartner({
+            id: donorId || "",
+            name: donorProfile?.full_name || "Donor",
+          });
+        }
+        setChatRequestId(notification.related_request_id);
+      }
+      return;
+    }
+
     // Navigate based on notification type and related data
     if (notification.related_item_id) {
       navigate(`/item/${notification.related_item_id}`);
     } else if (notification.related_request_id) {
       navigate("/requests");
-    } else {
-      // Default: just mark as read, no navigation
     }
   };
 
@@ -225,6 +267,22 @@ export default function Notifications() {
           })
         )}
       </div>
+
+      {/* Chat Dialog */}
+      {chatRequestId && chatPartner && user && (
+        <ChatDialog
+          requestId={chatRequestId}
+          currentUserId={user.id}
+          otherUserName={chatPartner.name}
+          open={!!chatRequestId}
+          onOpenChange={(open) => {
+            if (!open) {
+              setChatRequestId(null);
+              setChatPartner(null);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
