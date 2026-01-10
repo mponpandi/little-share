@@ -25,8 +25,8 @@ interface ChatDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   requestId: string;
-  itemName: string;
-  otherUserName: string;
+  itemName?: string;
+  otherUserName?: string;
   currentUserId: string;
 }
 
@@ -34,8 +34,8 @@ export function ChatDialog({
   open,
   onOpenChange,
   requestId,
-  itemName,
-  otherUserName,
+  itemName = "Item",
+  otherUserName = "User",
   currentUserId,
 }: ChatDialogProps) {
   const [messages, setMessages] = useState<Message[]>([]);
