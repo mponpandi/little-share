@@ -154,12 +154,6 @@ export function ChatDialog({
     }
   }, [open, requestId, currentUserId]);
 
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages]);
-
   const fetchMessages = async () => {
     setIsLoading(true);
     const { data, error } = await supabase
@@ -345,10 +339,26 @@ export function ChatDialog({
       })
     : null;
 
+  // Scroll to bottom when messages change
+  const scrollToBottom = useCallback(() => {
+    setTimeout(() => {
+      if (scrollRef.current) {
+        const scrollContainer = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
+        if (scrollContainer) {
+          scrollContainer.scrollTop = scrollContainer.scrollHeight;
+        }
+      }
+    }, 100);
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-md h-[85vh] flex flex-col p-0 gap-0 overflow-hidden">
+        <DialogContent className="w-full h-full max-w-full max-h-full sm:max-w-full sm:max-h-full rounded-none flex flex-col p-0 gap-0 overflow-hidden">
           <ChatHeader
             otherUserName={otherUserName}
             otherUserAvatar={otherUserAvatar}
@@ -361,69 +371,71 @@ export function ChatDialog({
             isLiveSharing={isLiveSharing}
           />
 
-          <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-            {isLoading ? (
-              <div className="flex items-center justify-center h-full">
-                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center py-12">
-                <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-                  <span className="text-2xl">💬</span>
+          <ScrollArea className="flex-1 overflow-hidden" ref={scrollRef}>
+            <div className="p-4">
+              {isLoading ? (
+                <div className="flex items-center justify-center h-[60vh]">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                 </div>
-                <p className="text-muted-foreground text-sm">No messages yet</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Start the conversation!
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {messages.map((msg) => {
-                  const isOwn = msg.sender_id === currentUserId;
-                  const senderProfile = profiles[msg.sender_id];
-                  const locationData = msg.location_data as {
-                    latitude: number;
-                    longitude: number;
-                    address?: string;
-                  } | null;
+              ) : messages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-[60vh] text-center">
+                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                    <span className="text-2xl">💬</span>
+                  </div>
+                  <p className="text-muted-foreground text-sm">No messages yet</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Start the conversation!
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4 pb-4">
+                  {messages.map((msg) => {
+                    const isOwn = msg.sender_id === currentUserId;
+                    const senderProfile = profiles[msg.sender_id];
+                    const locationData = msg.location_data as {
+                      latitude: number;
+                      longitude: number;
+                      address?: string;
+                    } | null;
 
-                  return (
-                    <ChatMessage
-                      key={msg.id}
-                      content={msg.content}
-                      isOwn={isOwn}
-                      timestamp={msg.created_at}
-                      isRead={msg.is_read}
-                      senderName={
-                        isOwn
-                          ? "You"
-                          : senderProfile?.full_name || otherUserName
-                      }
-                      senderAvatar={senderProfile?.avatar_url || undefined}
-                      messageType={
-                        msg.message_type as
-                          | "text"
-                          | "image"
-                          | "location"
-                          | "live_location"
-                      }
-                      mediaUrl={msg.media_url || undefined}
-                      locationData={
-                        locationData
-                          ? {
-                              latitude: locationData.latitude,
-                              longitude: locationData.longitude,
-                              isLive: msg.message_type === "live_location",
-                              address: locationData.address,
-                            }
-                          : undefined
-                      }
-                      onLocationClick={handleLocationClick}
-                    />
-                  );
-                })}
-              </div>
-            )}
+                    return (
+                      <ChatMessage
+                        key={msg.id}
+                        content={msg.content}
+                        isOwn={isOwn}
+                        timestamp={msg.created_at}
+                        isRead={msg.is_read}
+                        senderName={
+                          isOwn
+                            ? "You"
+                            : senderProfile?.full_name || otherUserName
+                        }
+                        senderAvatar={senderProfile?.avatar_url || undefined}
+                        messageType={
+                          msg.message_type as
+                            | "text"
+                            | "image"
+                            | "location"
+                            | "live_location"
+                        }
+                        mediaUrl={msg.media_url || undefined}
+                        locationData={
+                          locationData
+                            ? {
+                                latitude: locationData.latitude,
+                                longitude: locationData.longitude,
+                                isLive: msg.message_type === "live_location",
+                                address: locationData.address,
+                              }
+                            : undefined
+                        }
+                        onLocationClick={handleLocationClick}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </ScrollArea>
 
           <ChatInput
