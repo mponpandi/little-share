@@ -77,7 +77,7 @@ export function LocationMapPreview({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-card rounded-2xl shadow-card overflow-hidden w-full max-w-lg">
         <div className="flex items-center justify-between p-4 border-b">
           <h3 className="font-semibold">Location</h3>
