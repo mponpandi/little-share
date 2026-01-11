@@ -7,10 +7,15 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Gift, Heart, User, MapPin, Phone, Lock, Mail, Sparkles, Users, HandHeart, Map } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Gift, Heart, User, MapPin, Phone, Lock, Mail, Sparkles, Users, HandHeart, Map, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import LocationPicker from "@/components/LocationPicker";
+
+const forgotPasswordSchema = z.object({
+  email: z.string().email("Please enter a valid email"),
+});
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email"),
@@ -43,6 +48,11 @@ export default function Auth() {
   // Login state
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+
+  // Forgot password state
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
+  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
 
   // Register state
   const [fullName, setFullName] = useState("");
@@ -181,6 +191,33 @@ export default function Auth() {
     setIsLoading(false);
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      forgotPasswordSchema.parse({ email: forgotPasswordEmail });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        toast.error(error.errors[0].message);
+        return;
+      }
+    }
+
+    setForgotPasswordLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(forgotPasswordEmail, {
+      redirectTo: `${window.location.origin}/auth?reset=true`,
+    });
+
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Password reset link sent! Check your email.");
+      setShowForgotPassword(false);
+      setForgotPasswordEmail("");
+    }
+    setForgotPasswordLoading(false);
+  };
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -310,6 +347,20 @@ export default function Auth() {
                   <Button type="submit" className="w-full gradient-primary text-white" disabled={isLoading}>
                     {isLoading ? "Logging in..." : "Login"}
                   </Button>
+
+                  <div className="text-center">
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="text-sm text-primary p-0 h-auto"
+                      onClick={() => {
+                        setForgotPasswordEmail(loginEmail);
+                        setShowForgotPassword(true);
+                      }}
+                    >
+                      Forgot Password?
+                    </Button>
+                  </div>
                 </form>
               </CardContent>
             </Card>
@@ -486,6 +537,52 @@ export default function Auth() {
         initialLng={longitude}
         onLocationSelect={handleLocationFromPicker}
       />
+
+      {/* Forgot Password Dialog */}
+      <Dialog open={showForgotPassword} onOpenChange={setShowForgotPassword}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setShowForgotPassword(false)}
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              Reset Password
+            </DialogTitle>
+            <DialogDescription>
+              Enter your email address and we'll send you a link to reset your password.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleForgotPassword} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="forgot-email">Email Address</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  id="forgot-email"
+                  type="email"
+                  placeholder="Enter your email"
+                  className="pl-10"
+                  value={forgotPasswordEmail}
+                  onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+            <Button 
+              type="submit" 
+              className="w-full gradient-primary text-white" 
+              disabled={forgotPasswordLoading}
+            >
+              {forgotPasswordLoading ? "Sending..." : "Send Reset Link"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
