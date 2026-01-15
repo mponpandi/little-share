@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Gift, Heart, User, MapPin, Phone, Lock, Mail, Sparkles, Users, HandHeart, Map, ArrowLeft } from "lucide-react";
+import { Gift, Heart, User, MapPin, Phone, Lock, Mail, Sparkles, Users, HandHeart, Map, ArrowLeft, CheckCircle, MailCheck } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import LocationPicker from "@/components/LocationPicker";
@@ -53,6 +53,9 @@ export default function Auth() {
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
   const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
+
+  // Email verification state
+  const [showVerificationSent, setShowVerificationSent] = useState(false);
 
   // Register state
   const [fullName, setFullName] = useState("");
@@ -258,14 +261,15 @@ export default function Auth() {
 
     if (error) {
       if (error.message.includes("already registered")) {
-        toast.error("This mobile number is already registered. Please login instead.");
+        toast.error("This email is already registered. Please login instead.");
       } else {
         toast.error(error.message);
       }
+      setIsLoading(false);
     } else {
-      toast.success("Welcome to LittleShare! 🎉");
+      setShowVerificationSent(true);
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   return (
@@ -581,6 +585,53 @@ export default function Auth() {
               {forgotPasswordLoading ? "Sending..." : "Send Reset Link"}
             </Button>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Email Verification Sent Dialog */}
+      <Dialog open={showVerificationSent} onOpenChange={setShowVerificationSent}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader className="text-center">
+            <div className="mx-auto mb-4 w-16 h-16 rounded-full gradient-primary flex items-center justify-center">
+              <MailCheck className="w-8 h-8 text-white" />
+            </div>
+            <DialogTitle className="text-center text-xl">Verify Your Email</DialogTitle>
+            <DialogDescription className="text-center">
+              We've sent a verification link to <span className="font-semibold text-foreground">{email}</span>. 
+              Please check your inbox and click the link to verify your account.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+              <div className="flex items-start gap-3">
+                <CheckCircle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-muted-foreground">Check your email inbox for the verification link</p>
+              </div>
+              <div className="flex items-start gap-3">
+                <CheckCircle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-muted-foreground">If you don't see it, check your spam folder</p>
+              </div>
+              <div className="flex items-start gap-3">
+                <CheckCircle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-muted-foreground">Click the link in the email to activate your account</p>
+              </div>
+            </div>
+            <Button 
+              className="w-full" 
+              variant="outline"
+              onClick={() => {
+                setShowVerificationSent(false);
+                setEmail("");
+                setRegisterPassword("");
+                setFullName("");
+                setRegisterMobile("");
+                setAddress("");
+                setCity("");
+              }}
+            >
+              Back to Login
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
