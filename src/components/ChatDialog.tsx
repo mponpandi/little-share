@@ -124,7 +124,12 @@ export function ChatDialog({
           },
           (payload) => {
             const newMsg = payload.new as Message;
-            setMessages((prev) => [...prev, newMsg]);
+            // Only add if not already present (avoid duplicates from optimistic updates)
+            setMessages((prev) => {
+              const exists = prev.some((m) => m.id === newMsg.id);
+              if (exists) return prev;
+              return [...prev, newMsg];
+            });
             fetchProfiles([newMsg.sender_id]);
             if (newMsg.sender_id !== currentUserId) {
               markMessagesAsRead();
@@ -188,17 +193,44 @@ export function ChatDialog({
   const handleSendMessage = async (content: string) => {
     if (!content.trim() || isSending) return;
 
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMessage: Message = {
+      id: tempId,
+      request_id: requestId,
+      sender_id: currentUserId,
+      content: content.trim(),
+      created_at: new Date().toISOString(),
+      is_read: false,
+      message_type: "text",
+      media_url: null,
+      location_data: null,
+    };
+
+    // Optimistically add message
+    setMessages((prev) => [...prev, optimisticMessage]);
     setIsSending(true);
-    const { error } = await supabase.from("messages").insert({
+
+    const { data, error } = await supabase.from("messages").insert({
       request_id: requestId,
       sender_id: currentUserId,
       content: content.trim(),
       message_type: "text",
-    });
+    }).select().single();
 
     if (error) {
       toast.error("Failed to send message");
       console.error("Error sending message:", error);
+      // Remove optimistic message on error
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+    } else if (data) {
+      // Replace optimistic message with real one
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === tempId
+            ? { ...data, location_data: data.location_data as unknown as LocationData | null }
+            : m
+        )
+      );
     }
     setIsSending(false);
   };
