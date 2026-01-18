@@ -1,6 +1,6 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from "react-leaflet";
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +20,7 @@ import {
   BookOpen,
   Smartphone,
   Gift,
+  Crosshair,
 } from "lucide-react";
 import { User } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
@@ -36,40 +37,42 @@ L.Icon.Default.mergeOptions({
   shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
 
-// Custom marker icons for categories
+// Enhanced custom marker icons with better styling and shadow
+const createCategoryIcon = (emoji: string, bgColor: string) => new L.DivIcon({
+  html: `
+    <div class="relative">
+      <div class="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-2 bg-black/20 rounded-full blur-sm"></div>
+      <div class="w-12 h-12 rounded-full ${bgColor} flex items-center justify-center shadow-xl border-3 border-white transform transition-transform hover:scale-110 animate-bounce-once">
+        <span class="text-xl">${emoji}</span>
+      </div>
+      <div class="absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[10px] border-t-white"></div>
+    </div>
+  `,
+  className: "custom-marker-enhanced",
+  iconSize: [48, 56],
+  iconAnchor: [24, 56],
+  popupAnchor: [0, -56],
+});
+
 const categoryIcons: Record<string, L.DivIcon> = {
-  clothing: new L.DivIcon({
-    html: `<div class="w-10 h-10 rounded-full bg-purple flex items-center justify-center shadow-lg border-2 border-white"><span class="text-white text-lg">👕</span></div>`,
-    className: "custom-marker",
-    iconSize: [40, 40],
-    iconAnchor: [20, 40],
-  }),
-  school_supplies: new L.DivIcon({
-    html: `<div class="w-10 h-10 rounded-full bg-teal flex items-center justify-center shadow-lg border-2 border-white"><span class="text-white text-lg">📚</span></div>`,
-    className: "custom-marker",
-    iconSize: [40, 40],
-    iconAnchor: [20, 40],
-  }),
-  electronics: new L.DivIcon({
-    html: `<div class="w-10 h-10 rounded-full bg-gold flex items-center justify-center shadow-lg border-2 border-white"><span class="text-white text-lg">📱</span></div>`,
-    className: "custom-marker",
-    iconSize: [40, 40],
-    iconAnchor: [20, 40],
-  }),
-  other: new L.DivIcon({
-    html: `<div class="w-10 h-10 rounded-full bg-coral flex items-center justify-center shadow-lg border-2 border-white"><span class="text-white text-lg">🎁</span></div>`,
-    className: "custom-marker",
-    iconSize: [40, 40],
-    iconAnchor: [20, 40],
-  }),
+  clothing: createCategoryIcon("👕", "bg-purple-500"),
+  school_supplies: createCategoryIcon("📚", "bg-teal-500"),
+  electronics: createCategoryIcon("📱", "bg-amber-500"),
+  other: createCategoryIcon("🎁", "bg-rose-500"),
 };
 
-// User location marker
+// Enhanced user location marker - Google Maps blue dot style
 const userLocationIcon = new L.DivIcon({
-  html: `<div class="w-6 h-6 rounded-full bg-primary border-4 border-white shadow-lg animate-pulse"></div>`,
-  className: "custom-marker",
-  iconSize: [24, 24],
-  iconAnchor: [12, 12],
+  html: `
+    <div class="relative flex items-center justify-center">
+      <div class="absolute w-8 h-8 bg-blue-500/30 rounded-full animate-ping"></div>
+      <div class="absolute w-6 h-6 bg-blue-500/20 rounded-full animate-pulse"></div>
+      <div class="relative w-4 h-4 bg-blue-500 rounded-full border-3 border-white shadow-lg z-10"></div>
+    </div>
+  `,
+  className: "user-location-marker",
+  iconSize: [32, 32],
+  iconAnchor: [16, 16],
 });
 
 const distanceFilters = [
@@ -79,14 +82,25 @@ const distanceFilters = [
   { value: 50, label: "50 km" },
 ];
 
-// Component to recenter map
-function MapController({ lat, lng }: { lat: number; lng: number }) {
+// Enhanced map controller with smooth fly-to animation
+function MapController({ lat, lng, shouldCenter, onCentered }: { 
+  lat: number; 
+  lng: number; 
+  shouldCenter: boolean;
+  onCentered: () => void;
+}) {
   const map = useMap();
+  
   useEffect(() => {
-    if (map) {
-      map.setView([lat, lng], 13);
+    if (map && shouldCenter) {
+      map.flyTo([lat, lng], 15, {
+        duration: 1.5,
+        easeLinearity: 0.25,
+      });
+      onCentered();
     }
-  }, [lat, lng, map]);
+  }, [lat, lng, shouldCenter, map, onCentered]);
+  
   return null;
 }
 
@@ -94,12 +108,15 @@ export default function MapPage() {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [items, setItems] = useState<Item[]>([]);
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; accuracy?: number } | null>(null);
   const [selectedDistance, setSelectedDistance] = useState(10);
   const [isSatellite, setIsSatellite] = useState(false);
   const [isListView, setIsListView] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [locationLoading, setLocationLoading] = useState(false);
+  const [shouldCenterMap, setShouldCenterMap] = useState(false);
+  const [isTracking, setIsTracking] = useState(false);
+  const watchIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -108,12 +125,73 @@ export default function MapPage() {
       } else {
         setUser(session.user);
         fetchItems();
-        detectLocation();
+        startLocationTracking();
       }
     });
+    
+    return () => {
+      // Clean up location tracking on unmount
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+    };
   }, [navigate]);
 
-  const detectLocation = () => {
+  // Start real-time location tracking
+  const startLocationTracking = useCallback(() => {
+    setLocationLoading(true);
+    if ("geolocation" in navigator) {
+      // Initial position
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+          });
+          setShouldCenterMap(true);
+          setLocationLoading(false);
+          setIsTracking(true);
+        },
+        (error) => {
+          console.log("Geolocation error:", error.message);
+          setUserLocation({ lat: 20.5937, lng: 78.9629, accuracy: 0 });
+          setLocationLoading(false);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0,
+        }
+      );
+
+      // Continuous tracking
+      watchIdRef.current = navigator.geolocation.watchPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+          });
+          setIsTracking(true);
+        },
+        (error) => {
+          console.log("Watch position error:", error.message);
+          setIsTracking(false);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 5000,
+        }
+      );
+    } else {
+      setUserLocation({ lat: 20.5937, lng: 78.9629, accuracy: 0 });
+      setLocationLoading(false);
+    }
+  }, []);
+
+  const centerOnUser = useCallback(() => {
     setLocationLoading(true);
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
@@ -121,26 +199,27 @@ export default function MapPage() {
           setUserLocation({
             lat: position.coords.latitude,
             lng: position.coords.longitude,
+            accuracy: position.coords.accuracy,
           });
+          setShouldCenterMap(true);
           setLocationLoading(false);
         },
         (error) => {
           console.log("Geolocation error:", error.message);
-          // Default to a central location if geolocation fails
-          setUserLocation({ lat: 20.5937, lng: 78.9629 }); // India center
           setLocationLoading(false);
         },
         {
-          enableHighAccuracy: true, // Use GPS for more accurate location
-          timeout: 15000, // Wait up to 15 seconds
-          maximumAge: 0, // Don't use cached position
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0,
         }
       );
-    } else {
-      setUserLocation({ lat: 20.5937, lng: 78.9629 });
-      setLocationLoading(false);
     }
-  };
+  }, []);
+
+  const handleCentered = useCallback(() => {
+    setShouldCenterMap(false);
+  }, []);
 
   const fetchItems = async () => {
     setIsLoading(true);
@@ -357,9 +436,44 @@ export default function MapPage() {
                   zIndex={1000}
                 />
               )}
-              <MapController lat={userLocation.lat} lng={userLocation.lng} />
+              <MapController 
+                lat={userLocation.lat} 
+                lng={userLocation.lng} 
+                shouldCenter={shouldCenterMap}
+                onCentered={handleCentered}
+              />
+              
+              {/* Accuracy circle - Google Maps style blue circle */}
+              {userLocation.accuracy && userLocation.accuracy > 0 && (
+                <Circle
+                  center={[userLocation.lat, userLocation.lng]}
+                  radius={userLocation.accuracy}
+                  pathOptions={{
+                    color: '#4285F4',
+                    fillColor: '#4285F4',
+                    fillOpacity: 0.15,
+                    weight: 1,
+                  }}
+                />
+              )}
+              
               <Marker position={[userLocation.lat, userLocation.lng]} icon={userLocationIcon}>
-                <Popup>You are here</Popup>
+                <Popup>
+                  <div className="text-center">
+                    <p className="font-semibold">You are here</p>
+                    {userLocation.accuracy && (
+                      <p className="text-xs text-muted-foreground">
+                        Accuracy: ~{Math.round(userLocation.accuracy)}m
+                      </p>
+                    )}
+                    {isTracking && (
+                      <p className="text-xs text-green-600 flex items-center justify-center gap-1 mt-1">
+                        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                        Live tracking
+                      </p>
+                    )}
+                  </div>
+                </Popup>
               </Marker>
               {filteredItems.map((item) => (
                 <Marker
@@ -401,11 +515,13 @@ export default function MapPage() {
         {!isListView && (
           <Button
             size="icon"
-            className="absolute bottom-6 right-4 z-[1000] w-12 h-12 rounded-full shadow-lg gradient-primary"
-            onClick={detectLocation}
+            className={`absolute bottom-6 right-4 z-[1000] w-12 h-12 rounded-full shadow-lg transition-all ${
+              isTracking ? "bg-blue-500 hover:bg-blue-600" : "gradient-primary"
+            }`}
+            onClick={centerOnUser}
             disabled={locationLoading}
           >
-            <Navigation className={`w-5 h-5 text-white ${locationLoading ? "animate-spin" : ""}`} />
+            <Crosshair className={`w-5 h-5 text-white ${locationLoading ? "animate-spin" : ""}`} />
           </Button>
         )}
 
