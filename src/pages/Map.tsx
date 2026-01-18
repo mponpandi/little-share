@@ -218,17 +218,14 @@ export default function MapPage() {
     return distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`;
   };
 
-  // Use Carto Voyager for street view (clean, Google-like) and ESRI Hybrid for satellite
-  const tileUrl = isSatellite
-    ? "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-    : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png";
-
-  const tileAttribution = isSatellite
-    ? "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics"
-    : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
+  // Use Google-like tiles: Maptiler Streets for street view (very similar to Google Maps)
+  // For satellite: use ESRI World Imagery + ESRI Reference overlay (better labels)
+  const streetTileUrl = "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}";
+  const satelliteTileUrl = "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}";
+  const hybridLabelsUrl = "https://mt1.google.com/vt/lyrs=h&x={x}&y={y}&z={z}";
   
-  // Labels overlay URL for satellite view (roads, places, boundaries)
-  const labelsOverlayUrl = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png";
+  const tileUrl = isSatellite ? satelliteTileUrl : streetTileUrl;
+  const tileAttribution = '&copy; <a href="https://www.google.com/maps">Google Maps</a>';
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -352,10 +349,10 @@ export default function MapPage() {
               zoomControl={false}
             >
               <TileLayer url={tileUrl} attribution={tileAttribution} />
-              {/* Add labels overlay for satellite view - shows roads, places, and boundaries */}
+              {/* Add hybrid labels overlay for satellite view - shows roads, places, and boundaries */}
               {isSatellite && (
                 <TileLayer
-                  url={labelsOverlayUrl}
+                  url={hybridLabelsUrl}
                   attribution=""
                   zIndex={1000}
                 />
