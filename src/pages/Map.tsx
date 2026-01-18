@@ -342,6 +342,12 @@ export default function MapPage() {
               zoomControl={false}
             >
               <TileLayer url={tileUrl} attribution={tileAttribution} />
+              {isSatellite && (
+                <TileLayer
+                  url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+                  attribution=""
+                />
+              )}
               <MapController lat={userLocation.lat} lng={userLocation.lng} />
               <Marker position={[userLocation.lat, userLocation.lng]} icon={userLocationIcon}>
                 <Popup>You are here</Popup>
