@@ -124,10 +124,16 @@ export default function MapPage() {
           });
           setLocationLoading(false);
         },
-        () => {
+        (error) => {
+          console.log("Geolocation error:", error.message);
           // Default to a central location if geolocation fails
           setUserLocation({ lat: 20.5937, lng: 78.9629 }); // India center
           setLocationLoading(false);
+        },
+        {
+          enableHighAccuracy: true, // Use GPS for more accurate location
+          timeout: 15000, // Wait up to 15 seconds
+          maximumAge: 0, // Don't use cached position
         }
       );
     } else {
@@ -212,13 +218,17 @@ export default function MapPage() {
     return distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`;
   };
 
+  // Use Carto Voyager for street view (clean, Google-like) and ESRI Hybrid for satellite
   const tileUrl = isSatellite
     ? "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-    : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+    : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}{r}.png";
 
   const tileAttribution = isSatellite
-    ? "Tiles &copy; Esri"
-    : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+    ? "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics"
+    : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
+  
+  // Labels overlay URL for satellite view (roads, places, boundaries)
+  const labelsOverlayUrl = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}{r}.png";
 
   return (
     <div className="h-screen flex flex-col bg-background">
@@ -342,10 +352,12 @@ export default function MapPage() {
               zoomControl={false}
             >
               <TileLayer url={tileUrl} attribution={tileAttribution} />
+              {/* Add labels overlay for satellite view - shows roads, places, and boundaries */}
               {isSatellite && (
                 <TileLayer
-                  url="https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}"
+                  url={labelsOverlayUrl}
                   attribution=""
+                  zIndex={1000}
                 />
               )}
               <MapController lat={userLocation.lat} lng={userLocation.lng} />
