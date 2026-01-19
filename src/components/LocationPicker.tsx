@@ -1,20 +1,37 @@
 import { useState, useEffect, useRef } from "react";
-import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap, Circle } from "react-leaflet";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { MapPin, Navigation, Search } from "lucide-react";
+import { MapPin, Navigation, Search, Layers } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-// Fix default marker icon issue with webpack/vite
-delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
-  iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
-  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+// Custom red marker icon for selected location
+const selectedLocationIcon = L.divIcon({
+  className: 'custom-marker-icon',
+  html: `
+    <div class="relative">
+      <div class="w-10 h-10 bg-red-500 rounded-full border-4 border-white shadow-lg flex items-center justify-center transform -translate-x-1/2 -translate-y-full">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
+          <circle cx="12" cy="10" r="3"/>
+        </svg>
+      </div>
+      <div class="absolute left-1/2 -translate-x-1/2 -bottom-1 w-3 h-3 bg-red-500 rotate-45 border-r-2 border-b-2 border-white"></div>
+    </div>
+  `,
+  iconSize: [40, 48],
+  iconAnchor: [20, 48],
 });
+
+// Google Maps tile URLs
+const GOOGLE_TILES = {
+  street: "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+  satellite: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+  hybrid: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
+};
 
 interface LocationPickerProps {
   open: boolean;
@@ -51,15 +68,17 @@ function RecenterMap({ lat, lng, shouldAnimate = false }: RecenterMapProps) {
     const hasChanged = prevPositionRef.current.lat !== lat || prevPositionRef.current.lng !== lng;
     if (hasChanged) {
       if (shouldAnimate) {
-        map.flyTo([lat, lng], Math.max(map.getZoom(), 16), { duration: 1 });
+        map.flyTo([lat, lng], Math.max(map.getZoom(), 17), { duration: 1.2 });
       } else {
-        map.setView([lat, lng], Math.max(map.getZoom(), 16));
+        map.setView([lat, lng], Math.max(map.getZoom(), 17));
       }
       prevPositionRef.current = { lat, lng };
     }
   }, [lat, lng, map, shouldAnimate]);
   return null;
 }
+
+type MapType = 'street' | 'satellite' | 'hybrid';
 
 export default function LocationPicker({
   open,
@@ -79,6 +98,8 @@ export default function LocationPicker({
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
   const [shouldAnimate, setShouldAnimate] = useState(false);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+  const [accuracy, setAccuracy] = useState<number | null>(null);
+  const [mapType, setMapType] = useState<MapType>('street');
   const markerRef = useRef<L.Marker>(null);
   const watchIdRef = useRef<number | null>(null);
 
@@ -166,6 +187,7 @@ export default function LocationPicker({
   const detectCurrentLocation = () => {
     if ("geolocation" in navigator) {
       setIsDetectingLocation(true);
+      setAccuracy(null);
       
       // Clear any existing watch
       if (watchIdRef.current !== null) {
@@ -179,6 +201,7 @@ export default function LocationPicker({
           positionCount++;
           setShouldAnimate(true);
           setPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          setAccuracy(pos.coords.accuracy);
           
           // After getting 2 accurate positions, stop watching
           if (positionCount >= 2 || pos.coords.accuracy < 50) {
@@ -187,7 +210,7 @@ export default function LocationPicker({
               watchIdRef.current = null;
             }
             setIsDetectingLocation(false);
-            toast.success("Location detected accurately!");
+            toast.success(`Location detected! (±${Math.round(pos.coords.accuracy)}m)`);
           }
         },
         (error) => {
@@ -206,6 +229,13 @@ export default function LocationPicker({
         }
       }, 10000);
     }
+  };
+
+  const cycleMapType = () => {
+    const types: MapType[] = ['street', 'satellite', 'hybrid'];
+    const currentIndex = types.indexOf(mapType);
+    const nextIndex = (currentIndex + 1) % types.length;
+    setMapType(types[nextIndex]);
   };
   
   // Cleanup watch on unmount
@@ -266,25 +296,63 @@ export default function LocationPicker({
           </div>
 
           {/* Map */}
-          <div className="h-[300px] rounded-lg overflow-hidden border">
+          <div className="h-[300px] rounded-xl overflow-hidden border-2 border-border/50 shadow-lg relative">
             <MapContainer
               center={[position.lat, position.lng]}
-              zoom={15}
+              zoom={17}
               style={{ height: "100%", width: "100%" }}
+              zoomControl={false}
             >
               <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                url={GOOGLE_TILES[mapType]}
+                maxZoom={20}
               />
+              {/* Labels overlay for satellite/hybrid */}
+              {(mapType === 'satellite' || mapType === 'hybrid') && (
+                <TileLayer
+                  url="https://mt1.google.com/vt/lyrs=h&x={x}&y={y}&z={z}"
+                  maxZoom={20}
+                />
+              )}
+              {/* Accuracy circle */}
+              {accuracy && (
+                <Circle
+                  center={[position.lat, position.lng]}
+                  radius={accuracy}
+                  pathOptions={{
+                    color: '#4285F4',
+                    fillColor: '#4285F4',
+                    fillOpacity: 0.15,
+                    weight: 2,
+                  }}
+                />
+              )}
               <Marker
                 position={[position.lat, position.lng]}
                 draggable={true}
                 ref={markerRef}
+                icon={selectedLocationIcon}
                 eventHandlers={{ dragend: handleMarkerDrag }}
               />
               <MapClickHandler onLocationChange={handleLocationChange} />
               <RecenterMap lat={position.lat} lng={position.lng} shouldAnimate={shouldAnimate} />
             </MapContainer>
+            
+            {/* Map type toggle button */}
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={cycleMapType}
+              className="absolute top-3 right-3 z-[1000] bg-white/95 hover:bg-white shadow-md border"
+            >
+              <Layers className="w-4 h-4 mr-1.5" />
+              <span className="text-xs font-medium capitalize">{mapType}</span>
+            </Button>
+            
+            {/* Google Maps style hint */}
+            <div className="absolute bottom-2 left-2 z-[1000] bg-white/80 backdrop-blur-sm px-2 py-1 rounded text-xs text-muted-foreground">
+              Tap map or drag marker
+            </div>
           </div>
 
           {/* Address preview */}
