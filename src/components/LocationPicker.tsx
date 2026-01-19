@@ -40,13 +40,24 @@ function MapClickHandler({ onLocationChange }: MapClickHandlerProps) {
 interface RecenterMapProps {
   lat: number;
   lng: number;
+  shouldAnimate?: boolean;
 }
 
-function RecenterMap({ lat, lng }: RecenterMapProps) {
+function RecenterMap({ lat, lng, shouldAnimate = false }: RecenterMapProps) {
   const map = useMap();
+  const prevPositionRef = useRef({ lat, lng });
+  
   useEffect(() => {
-    map.setView([lat, lng], map.getZoom());
-  }, [lat, lng, map]);
+    const hasChanged = prevPositionRef.current.lat !== lat || prevPositionRef.current.lng !== lng;
+    if (hasChanged) {
+      if (shouldAnimate) {
+        map.flyTo([lat, lng], Math.max(map.getZoom(), 16), { duration: 1 });
+      } else {
+        map.setView([lat, lng], Math.max(map.getZoom(), 16));
+      }
+      prevPositionRef.current = { lat, lng };
+    }
+  }, [lat, lng, map, shouldAnimate]);
   return null;
 }
 
@@ -66,7 +77,10 @@ export default function LocationPicker({
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
+  const [shouldAnimate, setShouldAnimate] = useState(false);
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const markerRef = useRef<L.Marker>(null);
+  const watchIdRef = useRef<number | null>(null);
 
   // Update position when initial values change
   useEffect(() => {
@@ -115,6 +129,7 @@ export default function LocationPicker({
   }, [position]);
 
   const handleLocationChange = (lat: number, lng: number) => {
+    setShouldAnimate(true);
     setPosition({ lat, lng });
   };
 
@@ -150,18 +165,57 @@ export default function LocationPicker({
 
   const detectCurrentLocation = () => {
     if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
+      setIsDetectingLocation(true);
+      
+      // Clear any existing watch
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+      
+      // Use watchPosition for more accurate real-time location
+      let positionCount = 0;
+      watchIdRef.current = navigator.geolocation.watchPosition(
         (pos) => {
+          positionCount++;
+          setShouldAnimate(true);
           setPosition({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-          toast.success("Current location detected!");
+          
+          // After getting 2 accurate positions, stop watching
+          if (positionCount >= 2 || pos.coords.accuracy < 50) {
+            if (watchIdRef.current !== null) {
+              navigator.geolocation.clearWatch(watchIdRef.current);
+              watchIdRef.current = null;
+            }
+            setIsDetectingLocation(false);
+            toast.success("Location detected accurately!");
+          }
         },
         (error) => {
+          setIsDetectingLocation(false);
           toast.error("Could not detect location. Please search or click on the map.");
         },
         { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
       );
+      
+      // Fallback timeout to stop watching after 10 seconds
+      setTimeout(() => {
+        if (watchIdRef.current !== null) {
+          navigator.geolocation.clearWatch(watchIdRef.current);
+          watchIdRef.current = null;
+          setIsDetectingLocation(false);
+        }
+      }, 10000);
     }
   };
+  
+  // Cleanup watch on unmount
+  useEffect(() => {
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+    };
+  }, []);
 
   const handleConfirm = () => {
     onLocationSelect(position.lat, position.lng, address, city);
@@ -203,9 +257,11 @@ export default function LocationPicker({
               variant="outline"
               size="icon"
               onClick={detectCurrentLocation}
+              disabled={isDetectingLocation}
               title="Use current location"
+              className={isDetectingLocation ? "animate-pulse" : ""}
             >
-              <Navigation className="w-4 h-4" />
+              <Navigation className={`w-4 h-4 ${isDetectingLocation ? "animate-spin" : ""}`} />
             </Button>
           </div>
 
@@ -227,7 +283,7 @@ export default function LocationPicker({
                 eventHandlers={{ dragend: handleMarkerDrag }}
               />
               <MapClickHandler onLocationChange={handleLocationChange} />
-              <RecenterMap lat={position.lat} lng={position.lng} />
+              <RecenterMap lat={position.lat} lng={position.lng} shouldAnimate={shouldAnimate} />
             </MapContainer>
           </div>
 
@@ -245,11 +301,16 @@ export default function LocationPicker({
           </div>
         </div>
 
-        <DialogFooter className="p-4 pt-2">
+        <DialogFooter className="p-4 pt-2 gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleConfirm} className="gradient-primary text-white">
+          <Button 
+            onClick={handleConfirm} 
+            disabled={isLoadingAddress || !address}
+            className="gradient-primary text-white font-semibold px-6"
+          >
+            <MapPin className="w-4 h-4 mr-2" />
             Confirm Location
           </Button>
         </DialogFooter>
