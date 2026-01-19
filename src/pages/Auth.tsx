@@ -8,10 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Gift, Heart, User, MapPin, Phone, Lock, Mail, Sparkles, Users, HandHeart, Map, ArrowLeft, CheckCircle, MailCheck } from "lucide-react";
+import { Gift, Heart, User, MapPin, Phone, Lock, Mail, Sparkles, Users, HandHeart, Map, ArrowLeft, CheckCircle, MailCheck, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import LocationPicker from "@/components/LocationPicker";
+import { PasswordStrengthIndicator } from "@/components/PasswordStrengthIndicator";
 
 const forgotPasswordSchema = z.object({
   email: z.string().email("Please enter a valid email"),
@@ -24,8 +25,12 @@ const loginSchema = z.object({
 
 const registerSchema = z.object({
   fullName: z.string().min(2, "Full name must be at least 2 characters"),
-  mobile: z.string().min(10, "Mobile number must be at least 10 digits"),
-  email: z.string().email("Please enter a valid email"),
+  mobile: z.string()
+    .regex(/^\d{10}$/, "Mobile number must be exactly 10 digits")
+    .transform(val => val.replace(/\D/g, '')),
+  email: z.string()
+    .email("Please enter a valid email address")
+    .regex(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, "Please enter a valid email format"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   address: z.string().optional(),
   city: z.string().optional(),
@@ -48,6 +53,8 @@ export default function Auth() {
   // Login state
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
 
   // Forgot password state
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -338,13 +345,24 @@ export default function Auth() {
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
                         id="login-password"
-                        type="password"
+                        type={showLoginPassword ? "text" : "password"}
                         placeholder="Enter your password"
-                        className="pl-10"
+                        className="pl-10 pr-10"
                         value={loginPassword}
                         onChange={(e) => setLoginPassword(e.target.value)}
                         required
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginPassword(!showLoginPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {showLoginPassword ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
+                      </button>
                     </div>
                   </div>
 
@@ -437,13 +455,27 @@ export default function Auth() {
                       <Input
                         id="register-mobile"
                         type="tel"
-                        placeholder="Enter your mobile number"
+                        placeholder="Enter 10 digit mobile number"
                         className="pl-10"
                         value={registerMobile}
-                        onChange={(e) => setRegisterMobile(e.target.value)}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                          setRegisterMobile(value);
+                        }}
+                        maxLength={10}
                         required
                       />
+                      {registerMobile && (
+                        <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium ${
+                          registerMobile.length === 10 ? "text-emerald-600" : "text-muted-foreground"
+                        }`}>
+                          {registerMobile.length}/10
+                        </span>
+                      )}
                     </div>
+                    {registerMobile && registerMobile.length !== 10 && (
+                      <p className="text-xs text-destructive">Please enter exactly 10 digits</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -468,14 +500,26 @@ export default function Auth() {
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
                         id="register-password"
-                        type="password"
-                        placeholder="Create a password (min 6 characters)"
-                        className="pl-10"
+                        type={showRegisterPassword ? "text" : "password"}
+                        placeholder="Create a strong password"
+                        className="pl-10 pr-10"
                         value={registerPassword}
                         onChange={(e) => setRegisterPassword(e.target.value)}
                         required
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowRegisterPassword(!showRegisterPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {showRegisterPassword ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
+                      </button>
                     </div>
+                    <PasswordStrengthIndicator password={registerPassword} />
                   </div>
 
                   <div className="space-y-2">
