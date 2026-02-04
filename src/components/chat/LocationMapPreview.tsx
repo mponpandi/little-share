@@ -92,15 +92,16 @@ export function LocationMapPreview({
     setMapType(types[(currentIndex + 1) % types.length]);
   };
 
-  const handleNavigate = (lat: number, lng: number, userName: string) => {
+  const handleNavigate = (lat: number, lng: number) => {
+    // Use location.href for reliable mobile navigation to Google Maps
     const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
-    window.open(url, "_blank");
+    window.location.href = url;
     onNavigate?.(lat, lng);
   };
 
   const openInMaps = (lat: number, lng: number) => {
-    const url = `https://www.google.com/maps?q=${lat},${lng}`;
-    window.open(url, "_blank");
+    const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+    window.location.href = url;
   };
 
   return (
@@ -210,7 +211,7 @@ export function LocationMapPreview({
             .map((loc) => (
               <Button
                 key={loc.userId}
-                onClick={() => handleNavigate(loc.latitude, loc.longitude, loc.userName)}
+                onClick={() => handleNavigate(loc.latitude, loc.longitude)}
                 className="w-full bg-[#4285F4] hover:bg-[#3367D6] text-white shadow-md"
               >
                 <Navigation className="w-4 h-4 mr-2" />
