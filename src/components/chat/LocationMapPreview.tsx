@@ -105,131 +105,129 @@ export function LocationMapPreview({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-card rounded-2xl shadow-2xl overflow-hidden w-full max-w-lg border border-border/50">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-primary/10 to-accent/10">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-              <MapPin className="w-4 h-4 text-primary" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-foreground">Location</h3>
-              <p className="text-xs text-muted-foreground">
-                {locations.filter(l => l.isLive).length > 0 ? "Live sharing active" : "Shared location"}
-              </p>
-            </div>
+    <div className="fixed inset-0 z-[100] bg-background flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-primary/10 to-accent/10 shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
+            <MapPin className="w-4 h-4 text-primary" />
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full hover:bg-destructive/10">
-            <X className="w-5 h-5" />
-          </Button>
-        </div>
-
-        {/* Map */}
-        <div className="h-[320px] relative">
-          <MapContainer
-            center={[center.lat, center.lng]}
-            zoom={15}
-            className="h-full w-full"
-            zoomControl={false}
-          >
-            <TileLayer
-              attribution='&copy; Google Maps'
-              url={GOOGLE_TILES[mapType]}
-            />
-            {/* Add labels overlay for satellite/hybrid */}
-            {(mapType === 'satellite' || mapType === 'hybrid') && (
-              <TileLayer
-                url="https://mt1.google.com/vt/lyrs=h&x={x}&y={y}&z={z}"
-              />
-            )}
-            <MapUpdater locations={locations} />
-            
-            {/* Accuracy circles for live locations */}
-            {locations.filter(loc => loc.isLive && loc.accuracy).map((loc) => (
-              <Circle
-                key={`accuracy-${loc.userId}`}
-                center={[loc.latitude, loc.longitude]}
-                radius={loc.accuracy || 50}
-                pathOptions={{
-                  color: loc.isCurrentUser ? "#4285F4" : "#EA4335",
-                  fillColor: loc.isCurrentUser ? "#4285F4" : "#EA4335",
-                  fillOpacity: 0.15,
-                  weight: 1,
-                }}
-              />
-            ))}
-            
-            {locations.map((loc, index) => (
-              <Marker
-                key={`${loc.userId}-${index}`}
-                position={[loc.latitude, loc.longitude]}
-                icon={createMarkerIcon(!!loc.isCurrentUser, !!loc.isLive)}
-              >
-                <Popup className="custom-popup">
-                  <div className="text-center p-1 min-w-[120px]">
-                    <p className="font-semibold text-foreground">{loc.userName}</p>
-                    {loc.isLive && (
-                      <span className="inline-flex items-center gap-1 text-xs text-green-600 mt-1">
-                        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                        Live
-                      </span>
-                    )}
-                    {!loc.isCurrentUser && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="mt-2 w-full text-xs"
-                        onClick={() => openInMaps(loc.latitude, loc.longitude)}
-                      >
-                        <ExternalLink className="w-3 h-3 mr-1" />
-                        View in Maps
-                      </Button>
-                    )}
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
-          </MapContainer>
-
-          {/* Map type toggle */}
-          <Button
-            onClick={cycleMapType}
-            size="sm"
-            variant="secondary"
-            className="absolute top-3 right-3 z-[1000] shadow-lg bg-white/95 hover:bg-white text-foreground border"
-          >
-            <Layers className="w-4 h-4 mr-1" />
-            <span className="capitalize text-xs">{mapType}</span>
-          </Button>
-        </div>
-
-        {/* Navigation buttons */}
-        <div className="p-4 space-y-2 bg-muted/30">
-          {locations
-            .filter((loc) => !loc.isCurrentUser)
-            .map((loc) => (
-              <Button
-                key={loc.userId}
-                onClick={() => handleNavigate(loc.latitude, loc.longitude)}
-                className="w-full bg-[#4285F4] hover:bg-[#3367D6] text-white shadow-md"
-              >
-                <Navigation className="w-4 h-4 mr-2" />
-                Navigate to {loc.userName}
-                {loc.isLive && (
-                  <span className="ml-2 px-2 py-0.5 bg-green-500 text-white text-xs rounded-full">
-                    Live
-                  </span>
-                )}
-              </Button>
-            ))}
-          
-          {locations.filter((loc) => !loc.isCurrentUser).length === 0 && (
-            <p className="text-center text-sm text-muted-foreground py-2">
-              This is your current location
+          <div>
+            <h3 className="font-semibold text-foreground">Location</h3>
+            <p className="text-xs text-muted-foreground">
+              {locations.filter(l => l.isLive).length > 0 ? "Live sharing active" : "Shared location"}
             </p>
-          )}
+          </div>
         </div>
+        <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full hover:bg-destructive/10">
+          <X className="w-5 h-5" />
+        </Button>
+      </div>
+
+      {/* Full screen Map */}
+      <div className="flex-1 relative">
+        <MapContainer
+          center={[center.lat, center.lng]}
+          zoom={15}
+          className="h-full w-full"
+          zoomControl={false}
+        >
+          <TileLayer
+            attribution='&copy; Google Maps'
+            url={GOOGLE_TILES[mapType]}
+          />
+          {/* Add labels overlay for satellite/hybrid */}
+          {(mapType === 'satellite' || mapType === 'hybrid') && (
+            <TileLayer
+              url="https://mt1.google.com/vt/lyrs=h&x={x}&y={y}&z={z}"
+            />
+          )}
+          <MapUpdater locations={locations} />
+          
+          {/* Accuracy circles for live locations */}
+          {locations.filter(loc => loc.isLive && loc.accuracy).map((loc) => (
+            <Circle
+              key={`accuracy-${loc.userId}`}
+              center={[loc.latitude, loc.longitude]}
+              radius={loc.accuracy || 50}
+              pathOptions={{
+                color: loc.isCurrentUser ? "#4285F4" : "#EA4335",
+                fillColor: loc.isCurrentUser ? "#4285F4" : "#EA4335",
+                fillOpacity: 0.15,
+                weight: 1,
+              }}
+            />
+          ))}
+          
+          {locations.map((loc, index) => (
+            <Marker
+              key={`${loc.userId}-${index}`}
+              position={[loc.latitude, loc.longitude]}
+              icon={createMarkerIcon(!!loc.isCurrentUser, !!loc.isLive)}
+            >
+              <Popup className="custom-popup">
+                <div className="text-center p-1 min-w-[120px]">
+                  <p className="font-semibold text-foreground">{loc.userName}</p>
+                  {loc.isLive && (
+                    <span className="inline-flex items-center gap-1 text-xs text-green-600 mt-1">
+                      <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                      Live
+                    </span>
+                  )}
+                  {!loc.isCurrentUser && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-2 w-full text-xs"
+                      onClick={() => openInMaps(loc.latitude, loc.longitude)}
+                    >
+                      <ExternalLink className="w-3 h-3 mr-1" />
+                      View in Maps
+                    </Button>
+                  )}
+                </div>
+              </Popup>
+            </Marker>
+          ))}
+        </MapContainer>
+
+        {/* Map type toggle */}
+        <Button
+          onClick={cycleMapType}
+          size="sm"
+          variant="secondary"
+          className="absolute top-3 right-3 z-[1000] shadow-lg bg-white/95 hover:bg-white text-foreground border"
+        >
+          <Layers className="w-4 h-4 mr-1" />
+          <span className="capitalize text-xs">{mapType}</span>
+        </Button>
+      </div>
+
+      {/* Navigation buttons - fixed at bottom */}
+      <div className="p-4 space-y-2 bg-background border-t shrink-0 safe-area-bottom">
+        {locations
+          .filter((loc) => !loc.isCurrentUser)
+          .map((loc) => (
+            <Button
+              key={loc.userId}
+              onClick={() => handleNavigate(loc.latitude, loc.longitude)}
+              className="w-full bg-[#4285F4] hover:bg-[#3367D6] text-white shadow-md h-12 text-base"
+            >
+              <Navigation className="w-5 h-5 mr-2" />
+              Navigate to {loc.userName}
+              {loc.isLive && (
+                <span className="ml-2 px-2 py-0.5 bg-green-500 text-white text-xs rounded-full">
+                  Live
+                </span>
+              )}
+            </Button>
+          ))}
+        
+        {locations.filter((loc) => !loc.isCurrentUser).length === 0 && (
+          <p className="text-center text-sm text-muted-foreground py-2">
+            This is your current location
+          </p>
+        )}
       </div>
     </div>
   );
