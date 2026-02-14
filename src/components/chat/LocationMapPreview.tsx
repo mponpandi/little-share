@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from "react-leaflet";
 import L from "leaflet";
 import { Button } from "@/components/ui/button";
-import { X, Navigation, Layers, MapPin, ExternalLink } from "lucide-react";
+import { X, Navigation, Layers, MapPin, ExternalLink, Copy, ChevronUp } from "lucide-react";
+import { toast } from "sonner";
 import "leaflet/dist/leaflet.css";
 
 interface Location {
@@ -21,7 +22,6 @@ interface LocationMapPreviewProps {
   onNavigate?: (lat: number, lng: number) => void;
 }
 
-// Google Maps tile URLs
 const GOOGLE_TILES = {
   street: "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
   satellite: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
@@ -30,10 +30,8 @@ const GOOGLE_TILES = {
 
 type MapType = "street" | "satellite" | "hybrid";
 
-// Custom marker icons - Google Maps style
 const createMarkerIcon = (isCurrentUser: boolean, isLive: boolean) => {
-  const color = isCurrentUser ? "#4285F4" : "#EA4335"; // Google blue for current user, Google red for others
-  
+  const color = isCurrentUser ? "#4285F4" : "#EA4335";
   return L.divIcon({
     className: "custom-marker",
     html: `
@@ -59,7 +57,6 @@ const createMarkerIcon = (isCurrentUser: boolean, isLive: boolean) => {
 
 function MapUpdater({ locations }: { locations: Location[] }) {
   const map = useMap();
-  const prevLocationsRef = useRef<Location[]>([]);
 
   useEffect(() => {
     if (locations.length > 0) {
@@ -68,10 +65,20 @@ function MapUpdater({ locations }: { locations: Location[] }) {
       );
       map.flyToBounds(bounds, { padding: [60, 60], maxZoom: 16, duration: 0.8 });
     }
-    prevLocationsRef.current = locations;
   }, [locations, map]);
 
   return null;
+}
+
+// Reliable external link opener that works in iframes
+function openExternalLink(url: string) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 export function LocationMapPreview({
@@ -80,7 +87,9 @@ export function LocationMapPreview({
   onNavigate,
 }: LocationMapPreviewProps) {
   const [mapType, setMapType] = useState<MapType>("street");
-  
+  const [showNavOptions, setShowNavOptions] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
+
   const center =
     locations.length > 0
       ? { lat: locations[0].latitude, lng: locations[0].longitude }
@@ -92,32 +101,33 @@ export function LocationMapPreview({
     setMapType(types[(currentIndex + 1) % types.length]);
   };
 
-  const handleNavigate = (lat: number, lng: number) => {
-    const destination = `${lat},${lng}`;
-    // Try geo: URI first for mobile (opens default maps app), fallback to Google Maps in new tab
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    const isAndroid = /Android/.test(navigator.userAgent);
-    
-    if (isIOS) {
-      // Apple Maps deep link
-      window.open(`maps://maps.apple.com/?daddr=${destination}&dirflg=d`, '_blank');
-    } else if (isAndroid) {
-      // Google Maps intent for Android
-      window.open(`geo:${destination}?q=${destination}`, '_blank');
-      // Fallback after short delay
-      setTimeout(() => {
-        window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}&travelmode=driving`, '_blank');
-      }, 500);
-    } else {
-      // Desktop - open Google Maps in new tab
-      window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}&travelmode=driving`, '_blank');
-    }
+  const otherLocations = locations.filter((loc) => !loc.isCurrentUser);
+  const targetLoc = selectedLocation || otherLocations[0] || locations[0];
+
+  const openGoogleMaps = (lat: number, lng: number) => {
+    openExternalLink(
+      `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`
+    );
     onNavigate?.(lat, lng);
   };
 
-  const openInMaps = (lat: number, lng: number) => {
-    const query = `${lat},${lng}`;
-    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, '_blank');
+  const openAppleMaps = (lat: number, lng: number) => {
+    openExternalLink(
+      `https://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`
+    );
+    onNavigate?.(lat, lng);
+  };
+
+  const openWaze = (lat: number, lng: number) => {
+    openExternalLink(
+      `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`
+    );
+    onNavigate?.(lat, lng);
+  };
+
+  const copyCoordinates = (lat: number, lng: number) => {
+    navigator.clipboard.writeText(`${lat}, ${lng}`);
+    toast.success("Coordinates copied!");
   };
 
   return (
@@ -131,7 +141,9 @@ export function LocationMapPreview({
           <div>
             <h3 className="font-semibold text-foreground">Location</h3>
             <p className="text-xs text-muted-foreground">
-              {locations.filter(l => l.isLive).length > 0 ? "Live sharing active" : "Shared location"}
+              {locations.filter((l) => l.isLive).length > 0
+                ? "Live sharing active"
+                : "Shared location"}
             </p>
           </div>
         </div>
@@ -148,33 +160,28 @@ export function LocationMapPreview({
           className="h-full w-full"
           zoomControl={false}
         >
-          <TileLayer
-            attribution='&copy; Google Maps'
-            url={GOOGLE_TILES[mapType]}
-          />
-          {/* Add labels overlay for satellite/hybrid */}
-          {(mapType === 'satellite' || mapType === 'hybrid') && (
-            <TileLayer
-              url="https://mt1.google.com/vt/lyrs=h&x={x}&y={y}&z={z}"
-            />
+          <TileLayer attribution="&copy; Google Maps" url={GOOGLE_TILES[mapType]} />
+          {(mapType === "satellite" || mapType === "hybrid") && (
+            <TileLayer url="https://mt1.google.com/vt/lyrs=h&x={x}&y={y}&z={z}" />
           )}
           <MapUpdater locations={locations} />
-          
-          {/* Accuracy circles for live locations */}
-          {locations.filter(loc => loc.isLive && loc.accuracy).map((loc) => (
-            <Circle
-              key={`accuracy-${loc.userId}`}
-              center={[loc.latitude, loc.longitude]}
-              radius={loc.accuracy || 50}
-              pathOptions={{
-                color: loc.isCurrentUser ? "#4285F4" : "#EA4335",
-                fillColor: loc.isCurrentUser ? "#4285F4" : "#EA4335",
-                fillOpacity: 0.15,
-                weight: 1,
-              }}
-            />
-          ))}
-          
+
+          {locations
+            .filter((loc) => loc.isLive && loc.accuracy)
+            .map((loc) => (
+              <Circle
+                key={`accuracy-${loc.userId}`}
+                center={[loc.latitude, loc.longitude]}
+                radius={loc.accuracy || 50}
+                pathOptions={{
+                  color: loc.isCurrentUser ? "#4285F4" : "#EA4335",
+                  fillColor: loc.isCurrentUser ? "#4285F4" : "#EA4335",
+                  fillOpacity: 0.15,
+                  weight: 1,
+                }}
+              />
+            ))}
+
           {locations.map((loc, index) => (
             <Marker
               key={`${loc.userId}-${index}`}
@@ -189,17 +196,6 @@ export function LocationMapPreview({
                       <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                       Live
                     </span>
-                  )}
-                  {!loc.isCurrentUser && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="mt-2 w-full text-xs"
-                      onClick={() => openInMaps(loc.latitude, loc.longitude)}
-                    >
-                      <ExternalLink className="w-3 h-3 mr-1" />
-                      View in Maps
-                    </Button>
                   )}
                 </div>
               </Popup>
@@ -219,28 +215,91 @@ export function LocationMapPreview({
         </Button>
       </div>
 
-      {/* Navigation buttons - fixed at bottom */}
-      <div className="p-4 space-y-2 bg-background border-t shrink-0 safe-area-bottom">
-        {locations
-          .filter((loc) => !loc.isCurrentUser)
-          .map((loc) => (
-            <Button
-              key={loc.userId}
-              onClick={() => handleNavigate(loc.latitude, loc.longitude)}
-              className="w-full bg-[#4285F4] hover:bg-[#3367D6] text-white shadow-md h-12 text-base"
-            >
-              <Navigation className="w-5 h-5 mr-2" />
-              Navigate to {loc.userName}
-              {loc.isLive && (
-                <span className="ml-2 px-2 py-0.5 bg-green-500 text-white text-xs rounded-full">
-                  Live
+      {/* Bottom Navigation Panel */}
+      <div className="bg-background border-t shrink-0 safe-area-bottom">
+        {targetLoc && !targetLoc.isCurrentUser && (
+          <>
+            {/* Coordinates info bar */}
+            <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground font-mono">
+                  {targetLoc.latitude.toFixed(6)}, {targetLoc.longitude.toFixed(6)}
                 </span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2"
+                onClick={() => copyCoordinates(targetLoc.latitude, targetLoc.longitude)}
+              >
+                <Copy className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+
+            {/* Main navigate button */}
+            <div className="p-3">
+              <Button
+                onClick={() => openGoogleMaps(targetLoc.latitude, targetLoc.longitude)}
+                className="w-full bg-[#4285F4] hover:bg-[#3367D6] text-white shadow-md h-12 text-base font-medium"
+              >
+                <Navigation className="w-5 h-5 mr-2" />
+                Navigate to {targetLoc.userName}
+                {targetLoc.isLive && (
+                  <span className="ml-2 px-2 py-0.5 bg-green-500 text-white text-xs rounded-full">
+                    Live
+                  </span>
+                )}
+              </Button>
+            </div>
+
+            {/* More navigation options toggle */}
+            <div className="px-3 pb-3">
+              <button
+                onClick={() => setShowNavOptions(!showNavOptions)}
+                className="w-full flex items-center justify-center gap-1 text-xs text-muted-foreground py-1"
+              >
+                <span>More navigation options</span>
+                <ChevronUp className={`w-3.5 h-3.5 transition-transform ${showNavOptions ? "" : "rotate-180"}`} />
+              </button>
+
+              {showNavOptions && (
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex flex-col items-center gap-1 h-auto py-3"
+                    onClick={() => openGoogleMaps(targetLoc.latitude, targetLoc.longitude)}
+                  >
+                    <ExternalLink className="w-4 h-4 text-[#4285F4]" />
+                    <span className="text-[10px]">Google Maps</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex flex-col items-center gap-1 h-auto py-3"
+                    onClick={() => openAppleMaps(targetLoc.latitude, targetLoc.longitude)}
+                  >
+                    <ExternalLink className="w-4 h-4 text-[#333]" />
+                    <span className="text-[10px]">Apple Maps</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex flex-col items-center gap-1 h-auto py-3"
+                    onClick={() => openWaze(targetLoc.latitude, targetLoc.longitude)}
+                  >
+                    <ExternalLink className="w-4 h-4 text-[#33CCFF]" />
+                    <span className="text-[10px]">Waze</span>
+                  </Button>
+                </div>
               )}
-            </Button>
-          ))}
-        
-        {locations.filter((loc) => !loc.isCurrentUser).length === 0 && (
-          <p className="text-center text-sm text-muted-foreground py-2">
+            </div>
+          </>
+        )}
+
+        {otherLocations.length === 0 && (
+          <p className="text-center text-sm text-muted-foreground py-4">
             This is your current location
           </p>
         )}
