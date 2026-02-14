@@ -93,15 +93,31 @@ export function LocationMapPreview({
   };
 
   const handleNavigate = (lat: number, lng: number) => {
-    // Use location.href for reliable mobile navigation to Google Maps
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
-    window.location.href = url;
+    const destination = `${lat},${lng}`;
+    // Try geo: URI first for mobile (opens default maps app), fallback to Google Maps in new tab
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isAndroid = /Android/.test(navigator.userAgent);
+    
+    if (isIOS) {
+      // Apple Maps deep link
+      window.open(`maps://maps.apple.com/?daddr=${destination}&dirflg=d`, '_blank');
+    } else if (isAndroid) {
+      // Google Maps intent for Android
+      window.open(`geo:${destination}?q=${destination}`, '_blank');
+      // Fallback after short delay
+      setTimeout(() => {
+        window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}&travelmode=driving`, '_blank');
+      }, 500);
+    } else {
+      // Desktop - open Google Maps in new tab
+      window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}&travelmode=driving`, '_blank');
+    }
     onNavigate?.(lat, lng);
   };
 
   const openInMaps = (lat: number, lng: number) => {
-    const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-    window.location.href = url;
+    const query = `${lat},${lng}`;
+    window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`, '_blank');
   };
 
   return (
