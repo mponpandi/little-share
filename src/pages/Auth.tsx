@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Gift, Heart, User, MapPin, Phone, Lock, Sparkles, Users, HandHeart, Map, CheckCircle, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { Gift, Heart, User, MapPin, Phone, Lock, Sparkles, Users, HandHeart, Map, CheckCircle, Eye, EyeOff, ShieldCheck, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import LocationPicker from "@/components/LocationPicker";
@@ -16,14 +16,14 @@ import { PasswordStrengthIndicator } from "@/components/PasswordStrengthIndicato
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 const loginSchema = z.object({
-  phone: z.string().regex(/^\d{10}$/, "Phone number must be exactly 10 digits"),
+  email: z.string().email("Please enter a valid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
 const registerSchema = z.object({
   fullName: z.string().min(2, "Full name must be at least 2 characters"),
-  mobile: z.string()
-    .regex(/^\d{10}$/, "Mobile number must be exactly 10 digits"),
+  email: z.string().email("Please enter a valid email address"),
+  mobile: z.string().regex(/^\d{10}$/, "Mobile number must be exactly 10 digits"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   address: z.string().optional(),
   city: z.string().optional(),
@@ -44,13 +44,14 @@ export default function Auth() {
   const [dailyQuote] = useState(dailyQuotes[Math.floor(Math.random() * dailyQuotes.length)]);
 
   // Login state
-  const [loginPhone, setLoginPhone] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
 
   // Register state
   const [fullName, setFullName] = useState("");
+  const [registerEmail, setRegisterEmail] = useState("");
   const [registerMobile, setRegisterMobile] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [address, setAddress] = useState("");
@@ -63,7 +64,7 @@ export default function Auth() {
   // OTP verification state
   const [showOtpDialog, setShowOtpDialog] = useState(false);
   const [otpValue, setOtpValue] = useState("");
-  const [otpPhone, setOtpPhone] = useState("");
+  const [otpEmail, setOtpEmail] = useState("");
   const [otpLoading, setOtpLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
 
@@ -175,7 +176,7 @@ export default function Auth() {
     e.preventDefault();
     
     try {
-      loginSchema.parse({ phone: loginPhone, password: loginPassword });
+      loginSchema.parse({ email: loginEmail, password: loginPassword });
     } catch (error) {
       if (error instanceof z.ZodError) {
         toast.error(error.errors[0].message);
@@ -185,13 +186,13 @@ export default function Auth() {
 
     setIsLoading(true);
     const { error } = await supabase.auth.signInWithPassword({
-      phone: `+91${loginPhone}`,
+      email: loginEmail,
       password: loginPassword,
     });
 
     if (error) {
       toast.error(error.message === "Invalid login credentials" 
-        ? "Invalid phone number or password" 
+        ? "Invalid email or password" 
         : error.message
       );
     }
@@ -204,6 +205,7 @@ export default function Auth() {
     try {
       registerSchema.parse({
         fullName,
+        email: registerEmail,
         mobile: registerMobile,
         password: registerPassword,
         address,
@@ -218,10 +220,9 @@ export default function Auth() {
     }
 
     setIsLoading(true);
-    const phone = `+91${registerMobile}`;
     
     const { error } = await supabase.auth.signUp({
-      phone,
+      email: registerEmail,
       password: registerPassword,
       options: {
         data: {
@@ -238,17 +239,17 @@ export default function Auth() {
 
     if (error) {
       if (error.message.includes("already registered")) {
-        toast.error("This phone number is already registered. Please login instead.");
+        toast.error("This email is already registered. Please login instead.");
       } else {
         toast.error(error.message);
       }
       setIsLoading(false);
     } else {
-      setOtpPhone(phone);
+      setOtpEmail(registerEmail);
       setShowOtpDialog(true);
       setResendTimer(60);
       setIsLoading(false);
-      toast.success("OTP sent to your phone number!");
+      toast.success("OTP sent to your email!");
     }
   };
 
@@ -260,15 +261,15 @@ export default function Auth() {
 
     setOtpLoading(true);
     const { error } = await supabase.auth.verifyOtp({
-      phone: otpPhone,
+      email: otpEmail,
       token: otpValue,
-      type: "sms",
+      type: "email",
     });
 
     if (error) {
       toast.error(error.message || "Invalid OTP. Please try again.");
     } else {
-      toast.success("Phone verified successfully! Welcome to LittleShare!");
+      toast.success("Email verified successfully! Welcome to LittleShare!");
       setShowOtpDialog(false);
     }
     setOtpLoading(false);
@@ -279,8 +280,8 @@ export default function Auth() {
     
     setOtpLoading(true);
     const { error } = await supabase.auth.resend({
-      type: "sms",
-      phone: otpPhone,
+      type: "signup",
+      email: otpEmail,
     });
 
     if (error) {
@@ -333,32 +334,24 @@ export default function Auth() {
             <Card className="border-0 shadow-card">
               <CardHeader>
                 <CardTitle className="font-heading">Welcome Back!</CardTitle>
-                <CardDescription>Enter your phone number and password to continue</CardDescription>
+                <CardDescription>Enter your email and password to continue</CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="login-phone">Phone Number</Label>
+                    <Label htmlFor="login-email">Email Address</Label>
                     <div className="relative">
-                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <span className="absolute left-9 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">+91</span>
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <Input
-                        id="login-phone"
-                        type="tel"
-                        placeholder="Enter 10 digit phone number"
-                        className="pl-[4.5rem]"
-                        value={loginPhone}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/\D/g, '').slice(0, 10);
-                          setLoginPhone(value);
-                        }}
-                        maxLength={10}
+                        id="login-email"
+                        type="email"
+                        placeholder="Enter your email"
+                        className="pl-10"
+                        value={loginEmail}
+                        onChange={(e) => setLoginEmail(e.target.value)}
                         required
                       />
                     </div>
-                    {loginPhone && loginPhone.length !== 10 && (
-                      <p className="text-xs text-destructive">Please enter exactly 10 digits</p>
-                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -451,6 +444,22 @@ export default function Auth() {
                         className="pl-10"
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="register-email">Email Address</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        id="register-email"
+                        type="email"
+                        placeholder="Enter your email"
+                        className="pl-10"
+                        value={registerEmail}
+                        onChange={(e) => setRegisterEmail(e.target.value)}
                         required
                       />
                     </div>
@@ -586,9 +595,9 @@ export default function Auth() {
             <div className="mx-auto mb-4 w-16 h-16 rounded-full gradient-primary flex items-center justify-center">
               <ShieldCheck className="w-8 h-8 text-white" />
             </div>
-            <DialogTitle className="text-center text-xl">Verify Your Phone</DialogTitle>
+            <DialogTitle className="text-center text-xl">Verify Your Email</DialogTitle>
             <DialogDescription className="text-center">
-              We've sent a 6-digit OTP to <span className="font-semibold text-foreground">{otpPhone}</span>. 
+              We've sent a 6-digit OTP to <span className="font-semibold text-foreground">{otpEmail}</span>. 
               Enter the code below to verify your account.
             </DialogDescription>
           </DialogHeader>
@@ -637,7 +646,11 @@ export default function Auth() {
             <div className="bg-muted/50 rounded-lg p-3 space-y-1.5">
               <div className="flex items-start gap-2">
                 <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                <p className="text-xs text-muted-foreground">Check your SMS inbox for the 6-digit code</p>
+                <p className="text-xs text-muted-foreground">Check your email inbox for the 6-digit code</p>
+              </div>
+              <div className="flex items-start gap-2">
+                <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-muted-foreground">Also check your spam/junk folder</p>
               </div>
               <div className="flex items-start gap-2">
                 <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
