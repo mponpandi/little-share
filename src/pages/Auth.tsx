@@ -8,29 +8,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Gift, Heart, User, MapPin, Phone, Lock, Mail, Sparkles, Users, HandHeart, Map, ArrowLeft, CheckCircle, MailCheck, Eye, EyeOff } from "lucide-react";
+import { Gift, Heart, User, MapPin, Phone, Lock, Sparkles, Users, HandHeart, Map, CheckCircle, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import LocationPicker from "@/components/LocationPicker";
 import { PasswordStrengthIndicator } from "@/components/PasswordStrengthIndicator";
-
-const forgotPasswordSchema = z.object({
-  email: z.string().email("Please enter a valid email"),
-});
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 const loginSchema = z.object({
-  email: z.string().email("Please enter a valid email"),
+  phone: z.string().regex(/^\d{10}$/, "Phone number must be exactly 10 digits"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
 const registerSchema = z.object({
   fullName: z.string().min(2, "Full name must be at least 2 characters"),
   mobile: z.string()
-    .regex(/^\d{10}$/, "Mobile number must be exactly 10 digits")
-    .transform(val => val.replace(/\D/g, '')),
-  email: z.string()
-    .email("Please enter a valid email address")
-    .regex(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, "Please enter a valid email format"),
+    .regex(/^\d{10}$/, "Mobile number must be exactly 10 digits"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   address: z.string().optional(),
   city: z.string().optional(),
@@ -51,23 +44,14 @@ export default function Auth() {
   const [dailyQuote] = useState(dailyQuotes[Math.floor(Math.random() * dailyQuotes.length)]);
 
   // Login state
-  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPhone, setLoginPhone] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
 
-  // Forgot password state
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
-  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
-
-  // Email verification state
-  const [showVerificationSent, setShowVerificationSent] = useState(false);
-
   // Register state
   const [fullName, setFullName] = useState("");
   const [registerMobile, setRegisterMobile] = useState("");
-  const [email, setEmail] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
@@ -75,6 +59,13 @@ export default function Auth() {
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
+
+  // OTP verification state
+  const [showOtpDialog, setShowOtpDialog] = useState(false);
+  const [otpValue, setOtpValue] = useState("");
+  const [otpPhone, setOtpPhone] = useState("");
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
 
   const handleLocationFromPicker = (lat: number, lng: number, newAddress: string, newCity: string) => {
     setLatitude(lat);
@@ -102,6 +93,14 @@ export default function Auth() {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
+  // Resend timer countdown
+  useEffect(() => {
+    if (resendTimer > 0) {
+      const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendTimer]);
+
   const detectLocation = () => {
     setLocationLoading(true);
     if ("geolocation" in navigator) {
@@ -113,14 +112,12 @@ export default function Auth() {
           setLatitude(lat);
           setLongitude(lon);
           
-          // Reverse geocode to get address
           try {
             const response = await fetch(
               `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&addressdetails=1&zoom=18`
             );
             const data = await response.json();
             if (data.address) {
-              // Build a more readable address from components
               const addressParts = [];
               if (data.address.house_number) addressParts.push(data.address.house_number);
               if (data.address.road) addressParts.push(data.address.road);
@@ -178,7 +175,7 @@ export default function Auth() {
     e.preventDefault();
     
     try {
-      loginSchema.parse({ email: loginEmail, password: loginPassword });
+      loginSchema.parse({ phone: loginPhone, password: loginPassword });
     } catch (error) {
       if (error instanceof z.ZodError) {
         toast.error(error.errors[0].message);
@@ -188,44 +185,17 @@ export default function Auth() {
 
     setIsLoading(true);
     const { error } = await supabase.auth.signInWithPassword({
-      email: loginEmail,
+      phone: `+91${loginPhone}`,
       password: loginPassword,
     });
 
     if (error) {
       toast.error(error.message === "Invalid login credentials" 
-        ? "Invalid email or password" 
+        ? "Invalid phone number or password" 
         : error.message
       );
     }
     setIsLoading(false);
-  };
-
-  const handleForgotPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    try {
-      forgotPasswordSchema.parse({ email: forgotPasswordEmail });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        toast.error(error.errors[0].message);
-        return;
-      }
-    }
-
-    setForgotPasswordLoading(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(forgotPasswordEmail, {
-      redirectTo: `${window.location.origin}/reset-password`,
-    });
-
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("Password reset link sent! Check your email.");
-      setShowForgotPassword(false);
-      setForgotPasswordEmail("");
-    }
-    setForgotPasswordLoading(false);
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -235,7 +205,6 @@ export default function Auth() {
       registerSchema.parse({
         fullName,
         mobile: registerMobile,
-        email,
         password: registerPassword,
         address,
         city,
@@ -249,11 +218,12 @@ export default function Auth() {
     }
 
     setIsLoading(true);
+    const phone = `+91${registerMobile}`;
+    
     const { error } = await supabase.auth.signUp({
-      email: email,
+      phone,
       password: registerPassword,
       options: {
-        emailRedirectTo: `${window.location.origin}/`,
         data: {
           full_name: fullName,
           mobile_number: registerMobile,
@@ -268,15 +238,59 @@ export default function Auth() {
 
     if (error) {
       if (error.message.includes("already registered")) {
-        toast.error("This email is already registered. Please login instead.");
+        toast.error("This phone number is already registered. Please login instead.");
       } else {
         toast.error(error.message);
       }
       setIsLoading(false);
     } else {
-      setShowVerificationSent(true);
+      setOtpPhone(phone);
+      setShowOtpDialog(true);
+      setResendTimer(60);
       setIsLoading(false);
+      toast.success("OTP sent to your phone number!");
     }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (otpValue.length !== 6) {
+      toast.error("Please enter the 6-digit OTP");
+      return;
+    }
+
+    setOtpLoading(true);
+    const { error } = await supabase.auth.verifyOtp({
+      phone: otpPhone,
+      token: otpValue,
+      type: "sms",
+    });
+
+    if (error) {
+      toast.error(error.message || "Invalid OTP. Please try again.");
+    } else {
+      toast.success("Phone verified successfully! Welcome to LittleShare!");
+      setShowOtpDialog(false);
+    }
+    setOtpLoading(false);
+  };
+
+  const handleResendOtp = async () => {
+    if (resendTimer > 0) return;
+    
+    setOtpLoading(true);
+    const { error } = await supabase.auth.resend({
+      type: "sms",
+      phone: otpPhone,
+    });
+
+    if (error) {
+      toast.error(error.message || "Failed to resend OTP");
+    } else {
+      toast.success("OTP resent successfully!");
+      setResendTimer(60);
+      setOtpValue("");
+    }
+    setOtpLoading(false);
   };
 
   return (
@@ -319,24 +333,32 @@ export default function Auth() {
             <Card className="border-0 shadow-card">
               <CardHeader>
                 <CardTitle className="font-heading">Welcome Back!</CardTitle>
-                <CardDescription>Enter your email and password to continue</CardDescription>
+                <CardDescription>Enter your phone number and password to continue</CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="login-email">Email</Label>
+                    <Label htmlFor="login-phone">Phone Number</Label>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <span className="absolute left-9 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">+91</span>
                       <Input
-                        id="login-email"
-                        type="email"
-                        placeholder="Enter your email"
-                        className="pl-10"
-                        value={loginEmail}
-                        onChange={(e) => setLoginEmail(e.target.value)}
+                        id="login-phone"
+                        type="tel"
+                        placeholder="Enter 10 digit phone number"
+                        className="pl-[4.5rem]"
+                        value={loginPhone}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                          setLoginPhone(value);
+                        }}
+                        maxLength={10}
                         required
                       />
                     </div>
+                    {loginPhone && loginPhone.length !== 10 && (
+                      <p className="text-xs text-destructive">Please enter exactly 10 digits</p>
+                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -369,20 +391,6 @@ export default function Auth() {
                   <Button type="submit" className="w-full gradient-primary text-white" disabled={isLoading}>
                     {isLoading ? "Logging in..." : "Login"}
                   </Button>
-
-                  <div className="text-center">
-                    <Button
-                      type="button"
-                      variant="link"
-                      className="text-sm text-primary p-0 h-auto"
-                      onClick={() => {
-                        setForgotPasswordEmail(loginEmail);
-                        setShowForgotPassword(true);
-                      }}
-                    >
-                      Forgot Password?
-                    </Button>
-                  </div>
                 </form>
               </CardContent>
             </Card>
@@ -449,14 +457,15 @@ export default function Auth() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="register-mobile">Mobile Number</Label>
+                    <Label htmlFor="register-mobile">Phone Number</Label>
                     <div className="relative">
                       <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <span className="absolute left-9 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">+91</span>
                       <Input
                         id="register-mobile"
                         type="tel"
-                        placeholder="Enter 10 digit mobile number"
-                        className="pl-10"
+                        placeholder="Enter 10 digit phone number"
+                        className="pl-[4.5rem]"
                         value={registerMobile}
                         onChange={(e) => {
                           const value = e.target.value.replace(/\D/g, '').slice(0, 10);
@@ -476,22 +485,6 @@ export default function Auth() {
                     {registerMobile && registerMobile.length !== 10 && (
                       <p className="text-xs text-destructive">Please enter exactly 10 digits</p>
                     )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email (for notifications)</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="email"
-                        type="email"
-                        placeholder="Enter your email"
-                        className="pl-10"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                      />
-                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -586,95 +579,71 @@ export default function Auth() {
         onLocationSelect={handleLocationFromPicker}
       />
 
-      {/* Forgot Password Dialog */}
-      <Dialog open={showForgotPassword} onOpenChange={setShowForgotPassword}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setShowForgotPassword(false)}
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              Reset Password
-            </DialogTitle>
-            <DialogDescription>
-              Enter your email address and we'll send you a link to reset your password.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleForgotPassword} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="forgot-email">Email Address</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  id="forgot-email"
-                  type="email"
-                  placeholder="Enter your email"
-                  className="pl-10"
-                  value={forgotPasswordEmail}
-                  onChange={(e) => setForgotPasswordEmail(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-            <Button 
-              type="submit" 
-              className="w-full gradient-primary text-white" 
-              disabled={forgotPasswordLoading}
-            >
-              {forgotPasswordLoading ? "Sending..." : "Send Reset Link"}
-            </Button>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Email Verification Sent Dialog */}
-      <Dialog open={showVerificationSent} onOpenChange={setShowVerificationSent}>
+      {/* OTP Verification Dialog */}
+      <Dialog open={showOtpDialog} onOpenChange={setShowOtpDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader className="text-center">
             <div className="mx-auto mb-4 w-16 h-16 rounded-full gradient-primary flex items-center justify-center">
-              <MailCheck className="w-8 h-8 text-white" />
+              <ShieldCheck className="w-8 h-8 text-white" />
             </div>
-            <DialogTitle className="text-center text-xl">Verify Your Email</DialogTitle>
+            <DialogTitle className="text-center text-xl">Verify Your Phone</DialogTitle>
             <DialogDescription className="text-center">
-              We've sent a verification link to <span className="font-semibold text-foreground">{email}</span>. 
-              Please check your inbox and click the link to verify your account.
+              We've sent a 6-digit OTP to <span className="font-semibold text-foreground">{otpPhone}</span>. 
+              Enter the code below to verify your account.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 pt-4">
-            <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-              <div className="flex items-start gap-3">
-                <CheckCircle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-muted-foreground">Check your email inbox for the verification link</p>
+          <div className="space-y-6 pt-4">
+            <div className="flex justify-center">
+              <InputOTP
+                maxLength={6}
+                value={otpValue}
+                onChange={(value) => setOtpValue(value)}
+              >
+                <InputOTPGroup>
+                  <InputOTPSlot index={0} />
+                  <InputOTPSlot index={1} />
+                  <InputOTPSlot index={2} />
+                </InputOTPGroup>
+                <span className="mx-2 text-muted-foreground">-</span>
+                <InputOTPGroup>
+                  <InputOTPSlot index={3} />
+                  <InputOTPSlot index={4} />
+                  <InputOTPSlot index={5} />
+                </InputOTPGroup>
+              </InputOTP>
+            </div>
+
+            <Button 
+              className="w-full gradient-primary text-white" 
+              onClick={handleVerifyOtp}
+              disabled={otpLoading || otpValue.length !== 6}
+            >
+              {otpLoading ? "Verifying..." : "Verify OTP"}
+            </Button>
+
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground mb-2">Didn't receive the code?</p>
+              <Button
+                type="button"
+                variant="link"
+                className="text-sm text-primary p-0 h-auto"
+                onClick={handleResendOtp}
+                disabled={resendTimer > 0 || otpLoading}
+              >
+                {resendTimer > 0 ? `Resend OTP in ${resendTimer}s` : "Resend OTP"}
+              </Button>
+            </div>
+
+            <div className="bg-muted/50 rounded-lg p-3 space-y-1.5">
+              <div className="flex items-start gap-2">
+                <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-muted-foreground">Check your SMS inbox for the 6-digit code</p>
               </div>
-              <div className="flex items-start gap-3">
-                <CheckCircle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-muted-foreground">If you don't see it, check your spam folder</p>
-              </div>
-              <div className="flex items-start gap-3">
-                <CheckCircle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-muted-foreground">Click the link in the email to activate your account</p>
+              <div className="flex items-start gap-2">
+                <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-muted-foreground">The OTP expires in 5 minutes</p>
               </div>
             </div>
-            <Button 
-              className="w-full" 
-              variant="outline"
-              onClick={() => {
-                setShowVerificationSent(false);
-                setEmail("");
-                setRegisterPassword("");
-                setFullName("");
-                setRegisterMobile("");
-                setAddress("");
-                setCity("");
-              }}
-            >
-              Back to Login
-            </Button>
           </div>
         </DialogContent>
       </Dialog>
