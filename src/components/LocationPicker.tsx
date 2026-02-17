@@ -217,7 +217,7 @@ export default function LocationPicker({
           setIsDetectingLocation(false);
           toast.error("Could not detect location. Please search or click on the map.");
         },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
       );
       
       // Fallback timeout to stop watching after 10 seconds

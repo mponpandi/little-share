@@ -150,7 +150,7 @@ export function useLiveLocation(requestId: string, currentUserId: string) {
                   .eq("request_id", requestId);
               },
               (err) => console.error("Location watch error:", err),
-              { enableHighAccuracy: true, maximumAge: 5000 }
+              { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }
             );
 
             toast.success("Live location sharing started");

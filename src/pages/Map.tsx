@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from "react-le
 import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -116,8 +117,10 @@ export default function MapPage() {
   const [locationLoading, setLocationLoading] = useState(false);
   const [shouldCenterMap, setShouldCenterMap] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
+  const [locationPermission, setLocationPermission] = useState<'prompt' | 'granted' | 'denied' | 'checking'>('checking');
   const watchIdRef = useRef<number | null>(null);
 
+  // Check auth on mount
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session) {
@@ -125,96 +128,160 @@ export default function MapPage() {
       } else {
         setUser(session.user);
         fetchItems();
-        startLocationTracking();
+        checkLocationPermission();
       }
     });
     
     return () => {
-      // Clean up location tracking on unmount
       if (watchIdRef.current !== null) {
         navigator.geolocation.clearWatch(watchIdRef.current);
       }
     };
   }, [navigate]);
 
-  // Start real-time location tracking
+  // Check current permission state without triggering a prompt
+  const checkLocationPermission = useCallback(async () => {
+    if (!("geolocation" in navigator)) {
+      setLocationPermission('denied');
+      return;
+    }
+    try {
+      const result = await navigator.permissions.query({ name: 'geolocation' });
+      setLocationPermission(result.state as 'prompt' | 'granted' | 'denied');
+      if (result.state === 'granted') {
+        // Permission already granted, start tracking immediately
+        startLocationTracking();
+      }
+      // Listen for permission changes
+      result.addEventListener('change', () => {
+        setLocationPermission(result.state as 'prompt' | 'granted' | 'denied');
+        if (result.state === 'granted') {
+          startLocationTracking();
+        }
+      });
+    } catch {
+      // permissions API not supported, show prompt button
+      setLocationPermission('prompt');
+    }
+  }, []);
+
+  // Called from user gesture (button click) to request permission + start tracking
+  const handleGrantLocation = useCallback(() => {
+    if (!("geolocation" in navigator)) {
+      toast.error("Geolocation is not supported by your browser");
+      setLocationPermission('denied');
+      return;
+    }
+    setLocationLoading(true);
+    // CRITICAL: getCurrentPosition called directly in click handler for permission
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setUserLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+        });
+        setShouldCenterMap(true);
+        setLocationLoading(false);
+        setLocationPermission('granted');
+        setIsTracking(true);
+        toast.success(`Location detected! (±${Math.round(position.coords.accuracy)}m)`);
+        // Now start continuous tracking
+        startContinuousTracking();
+      },
+      (error) => {
+        setLocationLoading(false);
+        if (error.code === error.PERMISSION_DENIED) {
+          setLocationPermission('denied');
+          toast.error("Location permission denied. Please enable it in your browser/device settings.");
+        } else {
+          toast.error("Could not detect location. Please try again.");
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 20000,
+        maximumAge: 0,
+      }
+    );
+  }, []);
+
+  // Start real-time location tracking (after permission is granted)
   const startLocationTracking = useCallback(() => {
     setLocationLoading(true);
-    if ("geolocation" in navigator) {
-      // Initial position
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-            accuracy: position.coords.accuracy,
-          });
-          setShouldCenterMap(true);
-          setLocationLoading(false);
-          setIsTracking(true);
-        },
-        (error) => {
-          console.log("Geolocation error:", error.message);
-          setUserLocation({ lat: 20.5937, lng: 78.9629, accuracy: 0 });
-          setLocationLoading(false);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 0,
-        }
-      );
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setUserLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+        });
+        setShouldCenterMap(true);
+        setLocationLoading(false);
+        setIsTracking(true);
+        startContinuousTracking();
+      },
+      (error) => {
+        console.log("Geolocation error:", error.message);
+        setLocationLoading(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 20000,
+        maximumAge: 0,
+      }
+    );
+  }, []);
 
-      // Continuous tracking
-      watchIdRef.current = navigator.geolocation.watchPosition(
-        (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-            accuracy: position.coords.accuracy,
-          });
-          setIsTracking(true);
-        },
-        (error) => {
-          console.log("Watch position error:", error.message);
-          setIsTracking(false);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 5000,
-        }
-      );
-    } else {
-      setUserLocation({ lat: 20.5937, lng: 78.9629, accuracy: 0 });
-      setLocationLoading(false);
+  const startContinuousTracking = useCallback(() => {
+    // Clear any existing watch
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
     }
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        setUserLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+        });
+        setIsTracking(true);
+      },
+      (error) => {
+        console.log("Watch position error:", error.message);
+        setIsTracking(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 20000,
+        maximumAge: 0,
+      }
+    );
   }, []);
 
   const centerOnUser = useCallback(() => {
     setLocationLoading(true);
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-            accuracy: position.coords.accuracy,
-          });
-          setShouldCenterMap(true);
-          setLocationLoading(false);
-        },
-        (error) => {
-          console.log("Geolocation error:", error.message);
-          setLocationLoading(false);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 0,
-        }
-      );
-    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setUserLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+        });
+        setShouldCenterMap(true);
+        setLocationLoading(false);
+      },
+      (error) => {
+        console.log("Geolocation error:", error.message);
+        setLocationLoading(false);
+        toast.error("Could not get fresh location. Try again.");
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 20000,
+        maximumAge: 0,
+      }
+    );
   }, []);
 
   const handleCentered = useCallback(() => {
@@ -362,7 +429,59 @@ export default function MapPage() {
         </div>
       </div>
 
-      {/* Content */}
+      {/* Permission Gate */}
+      {(locationPermission === 'checking' || locationPermission === 'prompt' || locationPermission === 'denied') && !userLocation ? (
+        <div className="flex-1 flex items-center justify-center p-6">
+          <Card className="border-0 shadow-card max-w-sm w-full">
+            <CardContent className="p-8 text-center space-y-4">
+              {locationPermission === 'checking' ? (
+                <>
+                  <Navigation className="w-12 h-12 text-primary mx-auto animate-spin" />
+                  <p className="text-muted-foreground">Checking location permission...</p>
+                </>
+              ) : locationPermission === 'denied' ? (
+                <>
+                  <MapPin className="w-12 h-12 text-destructive mx-auto" />
+                  <h3 className="font-heading font-bold text-lg">Location Access Denied</h3>
+                  <p className="text-muted-foreground text-sm">
+                    Please enable location permission in your browser/device settings, then reload the page.
+                  </p>
+                  <Button onClick={() => window.location.reload()} className="w-full">
+                    Reload Page
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+                    <Navigation className="w-8 h-8 text-primary" />
+                  </div>
+                  <h3 className="font-heading font-bold text-lg">Enable Location Access</h3>
+                  <p className="text-muted-foreground text-sm">
+                    We need your precise location to show nearby donations accurately. Tap the button below to allow access.
+                  </p>
+                  <Button 
+                    onClick={handleGrantLocation} 
+                    disabled={locationLoading}
+                    className="w-full gradient-primary text-white font-semibold"
+                  >
+                    {locationLoading ? (
+                      <>
+                        <Crosshair className="w-4 h-4 mr-2 animate-spin" />
+                        Detecting Location...
+                      </>
+                    ) : (
+                      <>
+                        <MapPin className="w-4 h-4 mr-2" />
+                        Allow Location Access
+                      </>
+                    )}
+                  </Button>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
       <div className="flex-1 relative">
         {isListView ? (
           <div className="p-4 space-y-3 overflow-auto h-full pb-4">
@@ -532,6 +651,7 @@ export default function MapPage() {
           </Badge>
         </div>
       </div>
+      )}
     </div>
   );
 }
