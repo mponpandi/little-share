@@ -165,6 +165,40 @@ export default function MapPage() {
     }
   }, []);
 
+  // Helper: try to get position, with fallback from high-accuracy to network-based
+  const getPositionWithFallback = useCallback((
+    onSuccess: (position: GeolocationPosition) => void,
+    onError: (error: GeolocationPositionError) => void,
+  ) => {
+    // First try high accuracy (GPS) - works great on mobile
+    navigator.geolocation.getCurrentPosition(
+      onSuccess,
+      (highAccError) => {
+        // If it's a permission denial, don't retry
+        if (highAccError.code === highAccError.PERMISSION_DENIED) {
+          onError(highAccError);
+          return;
+        }
+        console.log("High accuracy failed, falling back to network location...");
+        // Fallback: lower accuracy (IP/Wi-Fi based) - works better on PC/laptop
+        navigator.geolocation.getCurrentPosition(
+          onSuccess,
+          onError,
+          {
+            enableHighAccuracy: false,
+            timeout: 30000,
+            maximumAge: 60000, // Accept up to 1 min old on fallback
+          }
+        );
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000, // Shorter timeout for first attempt
+        maximumAge: 0,
+      }
+    );
+  }, []);
+
   // Called from user gesture (button click) to request permission + start tracking
   const handleGrantLocation = useCallback(() => {
     if (!("geolocation" in navigator)) {
@@ -174,7 +208,7 @@ export default function MapPage() {
     }
     setLocationLoading(true);
     // CRITICAL: getCurrentPosition called directly in click handler for permission
-    navigator.geolocation.getCurrentPosition(
+    getPositionWithFallback(
       (position) => {
         setUserLocation({
           lat: position.coords.latitude,
@@ -198,18 +232,13 @@ export default function MapPage() {
           toast.error("Could not detect location. Please try again.");
         }
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 20000,
-        maximumAge: 0,
-      }
     );
-  }, []);
+  }, [getPositionWithFallback]);
 
   // Start real-time location tracking (after permission is granted)
   const startLocationTracking = useCallback(() => {
     setLocationLoading(true);
-    navigator.geolocation.getCurrentPosition(
+    getPositionWithFallback(
       (position) => {
         setUserLocation({
           lat: position.coords.latitude,
@@ -225,19 +254,16 @@ export default function MapPage() {
         console.log("Geolocation error:", error.message);
         setLocationLoading(false);
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 20000,
-        maximumAge: 0,
-      }
     );
-  }, []);
+  }, [getPositionWithFallback]);
 
   const startContinuousTracking = useCallback(() => {
     // Clear any existing watch
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
     }
+    // For continuous tracking, use lower accuracy on desktop to avoid constant timeouts
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
         setUserLocation({
@@ -249,19 +275,19 @@ export default function MapPage() {
       },
       (error) => {
         console.log("Watch position error:", error.message);
-        setIsTracking(false);
+        // Don't stop tracking on timeout - just keep trying
       },
       {
-        enableHighAccuracy: true,
-        timeout: 20000,
-        maximumAge: 0,
+        enableHighAccuracy: isMobile, // High accuracy on mobile, network on desktop
+        timeout: isMobile ? 20000 : 60000,
+        maximumAge: isMobile ? 0 : 30000, // Allow 30s cache on desktop
       }
     );
   }, []);
 
   const centerOnUser = useCallback(() => {
     setLocationLoading(true);
-    navigator.geolocation.getCurrentPosition(
+    getPositionWithFallback(
       (position) => {
         setUserLocation({
           lat: position.coords.latitude,
@@ -276,13 +302,8 @@ export default function MapPage() {
         setLocationLoading(false);
         toast.error("Could not get fresh location. Try again.");
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 20000,
-        maximumAge: 0,
-      }
     );
-  }, []);
+  }, [getPositionWithFallback]);
 
   const handleCentered = useCallback(() => {
     setShouldCenterMap(false);
