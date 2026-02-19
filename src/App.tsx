@@ -19,6 +19,7 @@ import Help from "./pages/Help";
 import Notifications from "./pages/Notifications";
 import MapPage from "./pages/Map";
 import ItemDetail from "./pages/ItemDetail";
+import EmailConfirmation from "./pages/EmailConfirmation";
 import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
@@ -32,6 +33,7 @@ const App = () => (
           <Route path="/" element={<Splash />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/email-confirmation" element={<EmailConfirmation />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/browse" element={<Browse />} />
           <Route path="/add-item" element={<AddItem />} />
