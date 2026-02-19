@@ -7,13 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Gift, Heart, User, MapPin, Phone, Lock, Sparkles, Users, HandHeart, Map, CheckCircle, Eye, EyeOff, ShieldCheck, Mail } from "lucide-react";
+import { Gift, Heart, User, MapPin, Phone, Lock, Sparkles, Users, HandHeart, Map, Eye, EyeOff, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import LocationPicker from "@/components/LocationPicker";
 import { PasswordStrengthIndicator } from "@/components/PasswordStrengthIndicator";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -61,12 +59,6 @@ export default function Auth() {
   const [longitude, setLongitude] = useState<number | null>(null);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
 
-  // OTP verification state
-  const [showOtpDialog, setShowOtpDialog] = useState(false);
-  const [otpValue, setOtpValue] = useState("");
-  const [otpEmail, setOtpEmail] = useState("");
-  const [otpLoading, setOtpLoading] = useState(false);
-  const [resendTimer, setResendTimer] = useState(0);
 
   const handleLocationFromPicker = (lat: number, lng: number, newAddress: string, newCity: string) => {
     setLatitude(lat);
@@ -94,13 +86,6 @@ export default function Auth() {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
-  // Resend timer countdown
-  useEffect(() => {
-    if (resendTimer > 0) {
-      const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [resendTimer]);
 
   const detectLocation = () => {
     setLocationLoading(true);
@@ -225,6 +210,7 @@ export default function Auth() {
       email: registerEmail,
       password: registerPassword,
       options: {
+        emailRedirectTo: `${window.location.origin}/email-confirmation?email=${encodeURIComponent(registerEmail)}`,
         data: {
           full_name: fullName,
           mobile_number: registerMobile,
@@ -245,54 +231,12 @@ export default function Auth() {
       }
       setIsLoading(false);
     } else {
-      setOtpEmail(registerEmail);
-      setShowOtpDialog(true);
-      setResendTimer(60);
       setIsLoading(false);
-      toast.success("OTP sent to your email!");
+      toast.success("Confirmation link sent to your email!");
+      navigate(`/email-confirmation?email=${encodeURIComponent(registerEmail)}`);
     }
   };
 
-  const handleVerifyOtp = async () => {
-    if (otpValue.length !== 6) {
-      toast.error("Please enter the 6-digit OTP");
-      return;
-    }
-
-    setOtpLoading(true);
-    const { error } = await supabase.auth.verifyOtp({
-      email: otpEmail,
-      token: otpValue,
-      type: "email",
-    });
-
-    if (error) {
-      toast.error(error.message || "Invalid OTP. Please try again.");
-    } else {
-      toast.success("Email verified successfully! Welcome to LittleShare!");
-      setShowOtpDialog(false);
-    }
-    setOtpLoading(false);
-  };
-
-  const handleResendOtp = async () => {
-    if (resendTimer > 0) return;
-    
-    setOtpLoading(true);
-    const { error } = await supabase.auth.resend({
-      type: "signup",
-      email: otpEmail,
-    });
-
-    if (error) {
-      toast.error(error.message || "Failed to resend OTP");
-    } else {
-      toast.success("OTP resent successfully!");
-      setResendTimer(60);
-      setOtpValue("");
-    }
-    setOtpLoading(false);
-  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -588,78 +532,6 @@ export default function Auth() {
         onLocationSelect={handleLocationFromPicker}
       />
 
-      {/* OTP Verification Dialog */}
-      <Dialog open={showOtpDialog} onOpenChange={setShowOtpDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader className="text-center">
-            <div className="mx-auto mb-4 w-16 h-16 rounded-full gradient-primary flex items-center justify-center">
-              <ShieldCheck className="w-8 h-8 text-white" />
-            </div>
-            <DialogTitle className="text-center text-xl">Verify Your Email</DialogTitle>
-            <DialogDescription className="text-center">
-              We've sent a 6-digit OTP to <span className="font-semibold text-foreground">{otpEmail}</span>. 
-              Enter the code below to verify your account.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6 pt-4">
-            <div className="flex justify-center">
-              <InputOTP
-                maxLength={6}
-                value={otpValue}
-                onChange={(value) => setOtpValue(value)}
-              >
-                <InputOTPGroup>
-                  <InputOTPSlot index={0} />
-                  <InputOTPSlot index={1} />
-                  <InputOTPSlot index={2} />
-                </InputOTPGroup>
-                <span className="mx-2 text-muted-foreground">-</span>
-                <InputOTPGroup>
-                  <InputOTPSlot index={3} />
-                  <InputOTPSlot index={4} />
-                  <InputOTPSlot index={5} />
-                </InputOTPGroup>
-              </InputOTP>
-            </div>
-
-            <Button 
-              className="w-full gradient-primary text-white" 
-              onClick={handleVerifyOtp}
-              disabled={otpLoading || otpValue.length !== 6}
-            >
-              {otpLoading ? "Verifying..." : "Verify OTP"}
-            </Button>
-
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground mb-2">Didn't receive the code?</p>
-              <Button
-                type="button"
-                variant="link"
-                className="text-sm text-primary p-0 h-auto"
-                onClick={handleResendOtp}
-                disabled={resendTimer > 0 || otpLoading}
-              >
-                {resendTimer > 0 ? `Resend OTP in ${resendTimer}s` : "Resend OTP"}
-              </Button>
-            </div>
-
-            <div className="bg-muted/50 rounded-lg p-3 space-y-1.5">
-              <div className="flex items-start gap-2">
-                <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                <p className="text-xs text-muted-foreground">Check your email inbox for the 6-digit code</p>
-              </div>
-              <div className="flex items-start gap-2">
-                <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                <p className="text-xs text-muted-foreground">Also check your spam/junk folder</p>
-              </div>
-              <div className="flex items-start gap-2">
-                <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                <p className="text-xs text-muted-foreground">The OTP expires in 5 minutes</p>
-              </div>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
