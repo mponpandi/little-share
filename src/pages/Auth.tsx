@@ -206,11 +206,22 @@ export default function Auth() {
 
     setIsLoading(true);
     
+    // Use the public preview URL for email redirect (not the internal iframe URL)
+    const getPublicUrl = () => {
+      const origin = window.location.origin;
+      // If running inside Lovable's internal iframe, use the public preview URL
+      if (origin.includes('lovableproject.com')) {
+        const projectId = origin.replace('https://', '').split('.')[0];
+        return `https://id-preview--${projectId}.lovable.app`;
+      }
+      return origin;
+    };
+
     const { error } = await supabase.auth.signUp({
       email: registerEmail,
       password: registerPassword,
       options: {
-        emailRedirectTo: `${window.location.origin}/email-confirmation?email=${encodeURIComponent(registerEmail)}`,
+        emailRedirectTo: `${getPublicUrl()}/email-confirmation?email=${encodeURIComponent(registerEmail)}`,
         data: {
           full_name: fullName,
           mobile_number: registerMobile,
