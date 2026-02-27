@@ -184,6 +184,41 @@ export default function Auth() {
     setIsLoading(false);
   };
 
+  const handleForgotPassword = async () => {
+    if (!loginEmail) {
+      toast.error("Please enter your email address first");
+      return;
+    }
+
+    const emailCheck = z.string().email().safeParse(loginEmail);
+    if (!emailCheck.success) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+
+    setIsLoading(true);
+
+    const getPublicUrl = () => {
+      const origin = window.location.origin;
+      if (origin.includes('lovableproject.com')) {
+        const projectId = origin.replace('https://', '').split('.')[0];
+        return `https://id-preview--${projectId}.lovable.app`;
+      }
+      return origin;
+    };
+
+    const { error } = await supabase.auth.resetPasswordForEmail(loginEmail, {
+      redirectTo: `${getPublicUrl()}/reset-password`,
+    });
+
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Password reset link sent to your email!");
+    }
+    setIsLoading(false);
+  };
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -339,6 +374,17 @@ export default function Auth() {
                   <Button type="submit" className="w-full gradient-primary text-white" disabled={isLoading}>
                     {isLoading ? "Logging in..." : "Login"}
                   </Button>
+
+                  <div className="text-center">
+                    <button
+                      type="button"
+                      onClick={handleForgotPassword}
+                      className="text-sm text-primary hover:underline"
+                      disabled={isLoading}
+                    >
+                      Forgot Password?
+                    </button>
+                  </div>
                 </form>
               </CardContent>
             </Card>
