@@ -29,23 +29,34 @@ export default function ResetPassword() {
   const [isCheckingSession, setIsCheckingSession] = useState(true);
 
   useEffect(() => {
-    // Check if user has a valid recovery session
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      // Listen for auth state changes (for when user clicks the email link)
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-        if (event === "PASSWORD_RECOVERY") {
+    const handleRecovery = async () => {
+      // Check for token_hash and type in URL params (email template link format)
+      const params = new URLSearchParams(window.location.search);
+      const tokenHash = params.get("token_hash");
+      const type = params.get("type");
+
+      if (tokenHash && type === "recovery") {
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: "recovery",
+        });
+        if (!error) {
           setIsValidSession(true);
-          setIsCheckingSession(false);
-        } else if (session) {
-          // User might already have a valid session from the recovery link
+        }
+        setIsCheckingSession(false);
+        return;
+      }
+
+      // Listen for PASSWORD_RECOVERY event (hash-based redirect from Supabase default template)
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && session)) {
           setIsValidSession(true);
           setIsCheckingSession(false);
         }
       });
 
-      // If already has session, allow password reset
+      // Check existing session
+      const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setIsValidSession(true);
       }
@@ -54,7 +65,7 @@ export default function ResetPassword() {
       return () => subscription.unsubscribe();
     };
 
-    checkSession();
+    handleRecovery();
   }, []);
 
   const handleResetPassword = async (e: React.FormEvent) => {
