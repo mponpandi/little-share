@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from "react-leaflet";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { MapContainer, TileLayer, Marker, Popup, useMap, Circle, Polyline } from "react-leaflet";
 import L from "leaflet";
 import { Button } from "@/components/ui/button";
-import { X, Navigation, Layers, MapPin, ExternalLink, Copy, ChevronUp } from "lucide-react";
+import { X, Navigation, Layers, MapPin, Copy, Locate, Route } from "lucide-react";
 import { toast } from "sonner";
 import "leaflet/dist/leaflet.css";
 
