@@ -223,18 +223,19 @@ export default function Dashboard() {
                   See All <ChevronRight className="w-3 h-3 ml-1" />
                 </Button>
               </div>
-              <div className="grid grid-cols-4 gap-2">
+              <StaggeredGrid className="grid grid-cols-4 gap-2">
                 {categories.map((cat) => (
-                  <CategoryCard
-                    key={cat.key}
-                    icon={cat.icon}
-                    label={cat.label}
-                    count={categoryCounts[cat.key] || 0}
-                    gradient={cat.gradient}
-                    onClick={() => navigate(`/browse?category=${cat.key}`)}
-                  />
+                  <StaggeredItem key={cat.key}>
+                    <CategoryCard
+                      icon={cat.icon}
+                      label={cat.label}
+                      count={categoryCounts[cat.key] || 0}
+                      gradient={cat.gradient}
+                      onClick={() => navigate(`/browse?category=${cat.key}`)}
+                    />
+                  </StaggeredItem>
                 ))}
-              </div>
+              </StaggeredGrid>
             </div>
 
             {/* Urgent Needs */}
