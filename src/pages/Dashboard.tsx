@@ -39,7 +39,20 @@ const categories = [
   { key: "other", icon: Gift, label: "Other", gradient: "gradient-primary" },
 ];
 
-export default function Dashboard() {
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme();
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="bg-white/10 hover:bg-white/20 text-white rounded-full"
+      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+    >
+      {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+    </Button>
+  );
+}
+
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
