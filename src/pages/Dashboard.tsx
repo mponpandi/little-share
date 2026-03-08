@@ -286,22 +286,23 @@ export default function Dashboard() {
                   Map View <ChevronRight className="w-3 h-3 ml-1" />
                 </Button>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <StaggeredGrid className="grid grid-cols-2 gap-3">
                 {recentItems.slice(0, 4).map((item) => (
-                  <ItemCard
-                    key={item.id}
-                    id={item.id}
-                    name={item.name}
-                    category={item.category}
-                    condition={item.condition}
-                    imageUrl={item.image_url || undefined}
-                    donorName={(item.profiles as { full_name: string } | null)?.full_name || "Anonymous"}
-                    createdAt={item.created_at}
-                    isUrgent={item.is_urgent}
-                    onClick={() => navigate(`/item/${item.id}`)}
-                  />
+                  <StaggeredItem key={item.id}>
+                    <ItemCard
+                      id={item.id}
+                      name={item.name}
+                      category={item.category}
+                      condition={item.condition}
+                      imageUrl={item.image_url || undefined}
+                      donorName={(item.profiles as { full_name: string } | null)?.full_name || "Anonymous"}
+                      createdAt={item.created_at}
+                      isUrgent={item.is_urgent}
+                      onClick={() => navigate(`/item/${item.id}`)}
+                    />
+                  </StaggeredItem>
                 ))}
-              </div>
+              </StaggeredGrid>
             </div>
 
             {/* Recently Added */}
