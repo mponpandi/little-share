@@ -344,6 +344,5 @@ export default function Dashboard() {
       </div>
 
       <BottomNav />
-    </div>
-  );
+    </PullToRefresh>
 }

@@ -192,6 +192,5 @@ export default function Browse() {
       </div>
 
       <BottomNav />
-    </div>
-  );
+    </PullToRefresh>
 }
