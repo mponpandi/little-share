@@ -41,6 +41,9 @@ export const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
       mediaUrl,
       locationData,
       onLocationClick,
+      showSeenReceipt,
+      seenAvatar,
+      seenName,
     },
     ref
   ) => {
