@@ -53,6 +53,8 @@ function ThemeToggle() {
   );
 }
 
+export default function Dashboard() {
+
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
