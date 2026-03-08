@@ -3,11 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { BottomNav } from "@/components/BottomNav";
 import { ItemCard } from "@/components/ItemCard";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Plus, Package, Sparkles, Users } from "lucide-react";
+import { ArrowLeft, Plus, Package, Sparkles, Users, MapPin, Calendar } from "lucide-react";
 import { User } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { AIRequestAnalysis } from "@/components/AIRequestAnalysis";
@@ -16,12 +17,21 @@ import { toast } from "sonner";
 type Item = Database["public"]["Tables"]["items"]["Row"];
 type RequestCount = { item_id: string; count: number };
 
+interface ReceiverInfo {
+  item_id: string;
+  receiver_name: string;
+  receiver_avatar: string | null;
+  receiver_city: string | null;
+  completed_at: string;
+}
+
 export default function MyPosts() {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [activeItems, setActiveItems] = useState<Item[]>([]);
   const [completedItems, setCompletedItems] = useState<Item[]>([]);
   const [requestCounts, setRequestCounts] = useState<Record<string, number>>({});
+  const [receiverInfoMap, setReceiverInfoMap] = useState<Record<string, ReceiverInfo>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [aiAnalysisItem, setAiAnalysisItem] = useState<{
     itemId: string;
@@ -51,7 +61,8 @@ export default function MyPosts() {
 
     if (items) {
       setActiveItems(items.filter((item) => item.is_available));
-      setCompletedItems(items.filter((item) => !item.is_available));
+      const completed = items.filter((item) => !item.is_available);
+      setCompletedItems(completed);
 
       // Fetch pending request counts for each active item
       const activeItemIds = items.filter((item) => item.is_available).map((item) => item.id);
@@ -68,6 +79,44 @@ export default function MyPosts() {
             counts[req.item_id] = (counts[req.item_id] || 0) + 1;
           });
           setRequestCounts(counts);
+        }
+      }
+
+      // Fetch receiver info for completed/accepted items
+      const completedItemIds = completed.map((item) => item.id);
+      if (completedItemIds.length > 0) {
+        const { data: acceptedRequests } = await supabase
+          .from("requests")
+          .select("item_id, receiver_id, updated_at")
+          .in("item_id", completedItemIds)
+          .in("status", ["accepted", "completed"]);
+
+        if (acceptedRequests && acceptedRequests.length > 0) {
+          const receiverIds = [...new Set(acceptedRequests.map((r) => r.receiver_id))];
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("id, full_name, avatar_url, city")
+            .in("id", receiverIds);
+
+          const profileMap = (profiles || []).reduce((acc, p) => {
+            acc[p.id] = p;
+            return acc;
+          }, {} as Record<string, { full_name: string; avatar_url: string | null; city: string | null }>);
+
+          const infoMap: Record<string, ReceiverInfo> = {};
+          acceptedRequests.forEach((r) => {
+            const p = profileMap[r.receiver_id];
+            if (p) {
+              infoMap[r.item_id] = {
+                item_id: r.item_id,
+                receiver_name: p.full_name,
+                receiver_avatar: p.avatar_url,
+                receiver_city: p.city,
+                completed_at: r.updated_at,
+              };
+            }
+          });
+          setReceiverInfoMap(infoMap);
         }
       }
     }
@@ -250,20 +299,67 @@ export default function MyPosts() {
                 actionLabel="View Active Items"
               />
             ) : (
-              <div className="grid grid-cols-2 gap-3">
-                {completedItems.map((item) => (
-                  <ItemCard
-                    key={item.id}
-                    id={item.id}
-                    name={item.name}
-                    category={item.category}
-                    condition={item.condition}
-                    imageUrl={item.image_url || undefined}
-                    donorName="You"
-                    createdAt={item.created_at}
-                    onClick={() => navigate(`/item/${item.id}`)}
-                  />
-                ))}
+              <div className="space-y-3">
+                {completedItems.map((item) => {
+                  const receiver = receiverInfoMap[item.id];
+                  return (
+                    <Card
+                      key={item.id}
+                      className="border-0 shadow-card overflow-hidden cursor-pointer hover:shadow-lg transition-shadow"
+                      onClick={() => navigate(`/item/${item.id}`)}
+                    >
+                      <CardContent className="p-0">
+                        <div className="flex">
+                          <div className="w-24 h-24 bg-muted flex-shrink-0">
+                            {item.image_url ? (
+                              <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-2xl">📦</div>
+                            )}
+                          </div>
+                          <div className="flex-1 p-3">
+                            <div className="flex items-start justify-between">
+                              <h3 className="font-semibold line-clamp-1">{item.name}</h3>
+                              <Badge variant="outline" className="text-xs capitalize ml-2 flex-shrink-0">
+                                {item.category.replace("_", " ")}
+                              </Badge>
+                            </div>
+
+                            {/* Receiver info */}
+                            {receiver ? (
+                              <div className="flex items-center gap-2 mt-2">
+                                <Avatar className="w-6 h-6">
+                                  <AvatarImage src={receiver.receiver_avatar || undefined} />
+                                  <AvatarFallback className="text-[10px] bg-teal/10 text-teal">
+                                    {receiver.receiver_name.charAt(0).toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium truncate">
+                                    Received by {receiver.receiver_name}
+                                  </p>
+                                  {receiver.receiver_city && (
+                                    <p className="text-xs text-muted-foreground flex items-center">
+                                      <MapPin className="w-3 h-3 mr-0.5" />
+                                      {receiver.receiver_city}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-muted-foreground mt-2">Awaiting pickup</p>
+                            )}
+
+                            <div className="flex items-center text-xs text-muted-foreground mt-1.5">
+                              <Calendar className="w-3 h-3 mr-1" />
+                              {new Date(receiver?.completed_at || item.updated_at).toLocaleDateString()}
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             )}
           </TabsContent>

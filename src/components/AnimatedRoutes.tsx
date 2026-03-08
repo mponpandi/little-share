@@ -8,6 +8,7 @@ import Dashboard from "@/pages/Dashboard";
 import Browse from "@/pages/Browse";
 import AddItem from "@/pages/AddItem";
 import MyPosts from "@/pages/MyPosts";
+import ItemsReceived from "@/pages/ItemsReceived";
 import Requests from "@/pages/Requests";
 import Profile from "@/pages/Profile";
 import EditProfile from "@/pages/EditProfile";
@@ -29,6 +30,7 @@ const routes = [
   { path: "/browse", element: <Browse /> },
   { path: "/add-item", element: <AddItem /> },
   { path: "/my-posts", element: <MyPosts /> },
+  { path: "/items-received", element: <ItemsReceived /> },
   { path: "/requests", element: <Requests /> },
   { path: "/profile", element: <Profile /> },
   { path: "/edit-profile", element: <EditProfile /> },
