@@ -21,6 +21,8 @@ import {
   Sparkles,
   Heart,
   PartyPopper,
+  X,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { User } from "@supabase/supabase-js";
@@ -50,6 +52,8 @@ const thankYouQuotes = [
   "The world needs more people like you! 🌍💚",
 ];
 
+const MAX_IMAGES = 5;
+
 export default function AddItem() {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
@@ -67,8 +71,8 @@ export default function AddItem() {
   const [isUrgent, setIsUrgent] = useState(false);
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -76,7 +80,6 @@ export default function AddItem() {
         navigate("/auth");
       } else {
         setUser(session.user);
-        // Pre-fill contact from profile
         supabase
           .from("profiles")
           .select("mobile_number, address")
@@ -99,7 +102,6 @@ export default function AddItem() {
         async (position) => {
           setLatitude(position.coords.latitude);
           setLongitude(position.coords.longitude);
-
           try {
             const response = await fetch(
               `https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.coords.latitude}&lon=${position.coords.longitude}`
@@ -123,41 +125,59 @@ export default function AddItem() {
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImageFile(file);
+    const files = Array.from(e.target.files || []);
+    const remaining = MAX_IMAGES - imageFiles.length;
+    if (files.length > remaining) {
+      toast.error(`You can add up to ${MAX_IMAGES} images`);
+    }
+    const toAdd = files.slice(0, remaining);
+
+    toAdd.forEach((file) => {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setImagePreview(reader.result as string);
+        setImagePreviews((prev) => [...prev, reader.result as string]);
       };
       reader.readAsDataURL(file);
-    }
+    });
+    setImageFiles((prev) => [...prev, ...toAdd]);
+    // Reset input so same file can be re-selected
+    e.target.value = "";
   };
 
-  const uploadImage = async (userId: string): Promise<string | null> => {
-    if (!imageFile) return null;
+  const removeImage = (index: number) => {
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const uploadImages = async (userId: string): Promise<string | null> => {
+    if (imageFiles.length === 0) return null;
 
     setImageUploading(true);
-    const fileExt = imageFile.name.split(".").pop();
-    const fileName = `${Date.now()}.${fileExt}`;
-    const filePath = `${userId}/${fileName}`;
+    const urls: string[] = [];
 
-    const { error: uploadError } = await supabase.storage
-      .from("item-images")
-      .upload(filePath, imageFile);
+    for (const file of imageFiles) {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+      const filePath = `${userId}/${fileName}`;
 
-    if (uploadError) {
-      console.error("Image upload failed:", uploadError);
-      setImageUploading(false);
-      return null;
+      const { error: uploadError } = await supabase.storage
+        .from("item-images")
+        .upload(filePath, file);
+
+      if (uploadError) {
+        console.error("Image upload failed:", uploadError);
+        continue;
+      }
+
+      const { data: urlData } = supabase.storage
+        .from("item-images")
+        .getPublicUrl(filePath);
+
+      urls.push(urlData.publicUrl);
     }
 
-    const { data: urlData } = supabase.storage
-      .from("item-images")
-      .getPublicUrl(filePath);
-
     setImageUploading(false);
-    return urlData.publicUrl;
+    return urls.length > 0 ? urls.join(",") : null;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -171,12 +191,11 @@ export default function AddItem() {
 
     setIsLoading(true);
 
-    // Upload image first if present
     let imageUrl: string | null = null;
-    if (imageFile) {
-      imageUrl = await uploadImage(user.id);
-      if (imageFile && !imageUrl) {
-        toast.error("Failed to upload image");
+    if (imageFiles.length > 0) {
+      imageUrl = await uploadImages(user.id);
+      if (!imageUrl) {
+        toast.error("Failed to upload images");
         setIsLoading(false);
         return;
       }
@@ -230,8 +249,8 @@ export default function AddItem() {
                 setShowCelebration(false);
                 setName("");
                 setDescription("");
-                setImagePreview(null);
-                setImageFile(null);
+                setImagePreviews([]);
+                setImageFiles([]);
               }}
               className="text-white hover:bg-white/10"
             >
@@ -270,37 +289,53 @@ export default function AddItem() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Image Upload */}
+              {/* Multiple Image Upload */}
               <div className="space-y-2">
-                <Label>Item Photo</Label>
-                <label className="block">
-                  <div
-                    className={`aspect-video rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center cursor-pointer transition-all hover:border-primary/50 hover:bg-muted/50 ${
-                      imagePreview ? "p-0 border-0" : "p-6"
-                    }`}
-                  >
-                    {imagePreview ? (
+                <Label>Item Photos (up to {MAX_IMAGES})</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {imagePreviews.map((preview, index) => (
+                    <div key={index} className="relative aspect-square rounded-xl overflow-hidden border border-border">
                       <img
-                        src={imagePreview}
-                        alt="Preview"
-                        className="w-full h-full object-cover rounded-xl"
+                        src={preview}
+                        alt={`Preview ${index + 1}`}
+                        className="w-full h-full object-cover"
                       />
-                    ) : (
-                      <>
-                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-2">
-                          <Camera className="w-6 h-6 text-primary" />
-                        </div>
-                        <p className="text-sm text-muted-foreground">Tap to add a photo</p>
-                      </>
-                    )}
-                  </div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleImageChange}
-                  />
-                </label>
+                      <button
+                        type="button"
+                        onClick={() => removeImage(index)}
+                        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shadow-md"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                      {index === 0 && (
+                        <span className="absolute bottom-1 left-1 text-[10px] bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">
+                          Cover
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                  {imageFiles.length < MAX_IMAGES && (
+                    <label className="aspect-square rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center cursor-pointer transition-all hover:border-primary/50 hover:bg-muted/50">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center mb-1">
+                        {imagePreviews.length === 0 ? (
+                          <Camera className="w-5 h-5 text-primary" />
+                        ) : (
+                          <Plus className="w-5 h-5 text-primary" />
+                        )}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground text-center px-1">
+                        {imagePreviews.length === 0 ? "Add Photo" : "Add More"}
+                      </p>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={handleImageChange}
+                      />
+                    </label>
+                  )}
+                </div>
               </div>
 
               {/* Item Name */}
