@@ -22,6 +22,10 @@ interface ChatMessageProps {
   mediaUrl?: string;
   locationData?: LocationData;
   onLocationClick?: (lat: number, lng: number) => void;
+  /** Show "Seen" with the other user's avatar below this message */
+  showSeenReceipt?: boolean;
+  seenAvatar?: string;
+  seenName?: string;
 }
 
 export const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
