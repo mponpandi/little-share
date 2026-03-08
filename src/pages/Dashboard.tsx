@@ -20,7 +20,10 @@ import {
   Flame,
   Clock,
   ChevronRight,
+  Sun,
+  Moon,
 } from "lucide-react";
+import { useTheme } from "next-themes";
 import { User, Session } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 
