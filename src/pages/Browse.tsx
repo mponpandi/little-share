@@ -85,7 +85,7 @@ export default function Browse() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <PullToRefresh onRefresh={fetchItems} className="min-h-screen bg-background pb-20">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background border-b border-border">
         <div className="p-4">
