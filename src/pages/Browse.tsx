@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { BottomNav } from "@/components/BottomNav";
 import { ItemCard } from "@/components/ItemCard";
 import { StaggeredGrid, StaggeredItem } from "@/components/StaggeredList";
+import { PullToRefresh } from "@/components/PullToRefresh";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -84,7 +85,7 @@ export default function Browse() {
   };
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <PullToRefresh onRefresh={fetchItems} className="min-h-screen bg-background pb-20">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background border-b border-border">
         <div className="p-4">
@@ -191,6 +192,6 @@ export default function Browse() {
       </div>
 
       <BottomNav />
-    </div>
+    </PullToRefresh>
   );
 }

@@ -5,6 +5,7 @@ import { BottomNav } from "@/components/BottomNav";
 import { CategoryCard } from "@/components/CategoryCard";
 import { ItemCard } from "@/components/ItemCard";
 import { StaggeredGrid, StaggeredItem } from "@/components/StaggeredList";
+import { PullToRefresh } from "@/components/PullToRefresh";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -150,7 +151,7 @@ export default function Dashboard() {
   const firstName = profile?.full_name?.split(" ")[0] || "Friend";
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <PullToRefresh onRefresh={fetchData} className="min-h-screen bg-background pb-20">
       {/* Header */}
       <div className="gradient-primary p-4 pb-8 rounded-b-[2rem]">
         <div className="flex items-center justify-between mb-4">
@@ -343,6 +344,6 @@ export default function Dashboard() {
       </div>
 
       <BottomNav />
-    </div>
+    </PullToRefresh>
   );
 }
