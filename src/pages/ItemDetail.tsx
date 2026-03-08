@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, MapPin, Phone, Clock, User, Heart, MessageSquare, CheckCircle } from "lucide-react";
+import { ArrowLeft, MapPin, Phone, Clock, User, Heart, MessageSquare, CheckCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -59,6 +59,7 @@ const ItemDetail = () => {
   const [submitting, setSubmitting] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [isOwner, setIsOwner] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -181,16 +182,60 @@ const ItemDetail = () => {
     );
   }
 
+  const imageUrls = item.image_url ? item.image_url.split(",").map(u => u.trim()) : [];
+
+  const nextImage = () => {
+    setCurrentImageIndex((prev) => (prev + 1) % imageUrls.length);
+  };
+  const prevImage = () => {
+    setCurrentImageIndex((prev) => (prev - 1 + imageUrls.length) % imageUrls.length);
+  };
+
   return (
     <div className="min-h-screen bg-background pb-6">
       {/* Header Image */}
       <div className="relative h-72 bg-gradient-to-br from-primary/20 to-secondary/20">
-        {item.image_url ? (
-          <img
-            src={item.image_url}
-            alt={item.name}
-            className="w-full h-full object-cover"
-          />
+        {imageUrls.length > 0 ? (
+          <>
+            <img
+              src={imageUrls[currentImageIndex]}
+              alt={item.name}
+              className="w-full h-full object-cover transition-opacity duration-300"
+            />
+            {imageUrls.length > 1 && (
+              <>
+                <button
+                  onClick={prevImage}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-background/70 backdrop-blur-sm"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={nextImage}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-background/70 backdrop-blur-sm"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+                {/* Dots indicator */}
+                <div className="absolute bottom-14 left-1/2 -translate-x-1/2 flex gap-1.5">
+                  {imageUrls.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setCurrentImageIndex(idx)}
+                      className={`w-2 h-2 rounded-full transition-all ${
+                        idx === currentImageIndex
+                          ? "bg-white w-4"
+                          : "bg-white/50"
+                      }`}
+                    />
+                  ))}
+                </div>
+                <span className="absolute top-4 right-4 text-xs bg-background/70 backdrop-blur-sm px-2 py-1 rounded-full">
+                  {currentImageIndex + 1}/{imageUrls.length}
+                </span>
+              </>
+            )}
+          </>
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <Heart className="w-20 h-20 text-primary/30" />
