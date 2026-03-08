@@ -30,6 +30,7 @@ const routes = [
   { path: "/browse", element: <Browse /> },
   { path: "/add-item", element: <AddItem /> },
   { path: "/my-posts", element: <MyPosts /> },
+  { path: "/items-received", element: <ItemsReceived /> },
   { path: "/requests", element: <Requests /> },
   { path: "/profile", element: <Profile /> },
   { path: "/edit-profile", element: <EditProfile /> },

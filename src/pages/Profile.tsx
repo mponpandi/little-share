@@ -149,7 +149,10 @@ export default function ProfilePage() {
 
         {/* Stats */}
         <div className="grid grid-cols-2 gap-3">
-          <Card className="border-0 shadow-card">
+          <Card 
+            className="border-0 shadow-card cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => navigate("/my-posts")}
+          >
             <CardContent className="p-4 text-center">
               <div className="w-12 h-12 rounded-xl gradient-accent flex items-center justify-center mx-auto mb-2">
                 <Gift className="w-6 h-6 text-white" />
@@ -158,7 +161,10 @@ export default function ProfilePage() {
               <p className="text-sm text-muted-foreground">Items Donated</p>
             </CardContent>
           </Card>
-          <Card className="border-0 shadow-card">
+          <Card 
+            className="border-0 shadow-card cursor-pointer hover:shadow-lg transition-shadow"
+            onClick={() => navigate("/items-received")}
+          >
             <CardContent className="p-4 text-center">
               <div className="w-12 h-12 rounded-xl gradient-purple flex items-center justify-center mx-auto mb-2">
                 <Heart className="w-6 h-6 text-white" />
