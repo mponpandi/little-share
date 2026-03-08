@@ -183,7 +183,6 @@ const ItemDetail = () => {
   }
 
   const imageUrls = item.image_url ? item.image_url.split(",").map(u => u.trim()) : [];
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   const nextImage = () => {
     setCurrentImageIndex((prev) => (prev + 1) % imageUrls.length);
