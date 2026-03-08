@@ -462,6 +462,16 @@ export function ChatDialog({
     const elements: React.ReactNode[] = [];
     let lastDate: Date | null = null;
 
+    // Find the last own message that has been read (for seen receipt)
+    let lastReadOwnMessageId: string | null = null;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.sender_id === currentUserId && msg.is_read) {
+        lastReadOwnMessageId = msg.id;
+        break;
+      }
+    }
+
     messages.forEach((msg) => {
       const msgDate = new Date(msg.created_at);
       if (!lastDate || !isSameDay(lastDate, msgDate)) {
@@ -478,6 +488,8 @@ export function ChatDialog({
         longitude: number;
         address?: string;
       } | null;
+
+      const showSeenReceipt = isOwn && msg.id === lastReadOwnMessageId;
 
       elements.push(
         <ChatMessage
@@ -505,6 +517,9 @@ export function ChatDialog({
               : undefined
           }
           onLocationClick={handleLocationClick}
+          showSeenReceipt={showSeenReceipt}
+          seenAvatar={otherUserAvatar}
+          seenName={otherUserName}
         />
       );
     });
