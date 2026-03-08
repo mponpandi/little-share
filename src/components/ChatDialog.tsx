@@ -10,7 +10,8 @@ import { ChatInput } from "./chat/ChatInput";
 import { LocationMapPreview } from "./chat/LocationMapPreview";
 import { useChatPresence } from "@/hooks/useChatPresence";
 import { useLiveLocation } from "@/hooks/useLiveLocation";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format, isToday, isYesterday, isSameDay } from "date-fns";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface LocationData {
   latitude: number;
@@ -46,6 +47,39 @@ interface ChatDialogProps {
   currentUserId: string;
 }
 
+function DateSeparator({ date }: { date: string }) {
+  const d = new Date(date);
+  let label: string;
+  if (isToday(d)) label = "Today";
+  else if (isYesterday(d)) label = "Yesterday";
+  else label = format(d, "MMMM d, yyyy");
+
+  return (
+    <div className="flex items-center justify-center my-4">
+      <span className="px-3 py-1 bg-muted/80 text-muted-foreground text-[11px] rounded-full font-medium">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function TypingIndicator() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 4 }}
+      className="flex items-center gap-2 px-4 py-1"
+    >
+      <div className="flex gap-1 px-3 py-2 bg-card border border-border rounded-2xl rounded-bl-sm">
+        <span className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce [animation-delay:0ms]" />
+        <span className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce [animation-delay:150ms]" />
+        <span className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce [animation-delay:300ms]" />
+      </div>
+    </motion.div>
+  );
+}
+
 export function ChatDialog({
   open,
   onOpenChange,
@@ -70,7 +104,8 @@ export function ChatDialog({
       isCurrentUser?: boolean;
     }>
   >([]);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const { otherUserPresence } = useChatPresence(
     open ? requestId : "",
@@ -88,7 +123,6 @@ export function ChatDialog({
   const fetchProfiles = useCallback(async (userIds: string[]) => {
     const uniqueIds = [...new Set(userIds)];
     const missingIds = uniqueIds.filter((id) => !profiles[id]);
-
     if (missingIds.length === 0) return;
 
     const { data } = await supabase
@@ -124,7 +158,6 @@ export function ChatDialog({
           },
           (payload) => {
             const newMsg = payload.new as Message;
-            // Only add if not already present (avoid duplicates from optimistic updates)
             setMessages((prev) => {
               const exists = prev.some((m) => m.id === newMsg.id);
               if (exists) return prev;
@@ -170,10 +203,12 @@ export function ChatDialog({
     if (error) {
       console.error("Error fetching messages:", error);
     } else {
-      setMessages((data || []).map(m => ({
-        ...m,
-        location_data: m.location_data as unknown as LocationData | null
-      })));
+      setMessages(
+        (data || []).map((m) => ({
+          ...m,
+          location_data: m.location_data as unknown as LocationData | null,
+        }))
+      );
       const userIds = (data || []).map((m) => m.sender_id);
       if (userIds.length > 0) {
         fetchProfiles(userIds);
@@ -206,28 +241,32 @@ export function ChatDialog({
       location_data: null,
     };
 
-    // Optimistically add message
     setMessages((prev) => [...prev, optimisticMessage]);
     setIsSending(true);
 
-    const { data, error } = await supabase.from("messages").insert({
-      request_id: requestId,
-      sender_id: currentUserId,
-      content: content.trim(),
-      message_type: "text",
-    }).select().single();
+    const { data, error } = await supabase
+      .from("messages")
+      .insert({
+        request_id: requestId,
+        sender_id: currentUserId,
+        content: content.trim(),
+        message_type: "text",
+      })
+      .select()
+      .single();
 
     if (error) {
       toast.error("Failed to send message");
-      console.error("Error sending message:", error);
-      // Remove optimistic message on error
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
     } else if (data) {
-      // Replace optimistic message with real one
       setMessages((prev) =>
         prev.map((m) =>
           m.id === tempId
-            ? { ...data, location_data: data.location_data as unknown as LocationData | null }
+            ? {
+                ...data,
+                location_data:
+                  data.location_data as unknown as LocationData | null,
+              }
             : m
         )
       );
@@ -239,6 +278,23 @@ export function ChatDialog({
     if (isSending) return;
 
     setIsSending(true);
+    const tempId = `temp-img-${Date.now()}`;
+    const tempUrl = URL.createObjectURL(file);
+
+    // Optimistic image message
+    const optimisticMessage: Message = {
+      id: tempId,
+      request_id: requestId,
+      sender_id: currentUserId,
+      content: "",
+      created_at: new Date().toISOString(),
+      is_read: false,
+      message_type: "image",
+      media_url: tempUrl,
+      location_data: null,
+    };
+    setMessages((prev) => [...prev, optimisticMessage]);
+
     try {
       const fileExt = file.name.split(".").pop();
       const fileName = `${currentUserId}/${Date.now()}.${fileExt}`;
@@ -253,18 +309,39 @@ export function ChatDialog({
         data: { publicUrl },
       } = supabase.storage.from("chat-media").getPublicUrl(fileName);
 
-      const { error } = await supabase.from("messages").insert({
-        request_id: requestId,
-        sender_id: currentUserId,
-        content: "",
-        message_type: "image",
-        media_url: publicUrl,
-      });
+      const { data, error } = await supabase
+        .from("messages")
+        .insert({
+          request_id: requestId,
+          sender_id: currentUserId,
+          content: "",
+          message_type: "image",
+          media_url: publicUrl,
+        })
+        .select()
+        .single();
 
       if (error) throw error;
+
+      if (data) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === tempId
+              ? {
+                  ...data,
+                  location_data:
+                    data.location_data as unknown as LocationData | null,
+                }
+              : m
+          )
+        );
+      }
     } catch (err) {
       console.error("Error sending image:", err);
       toast.error("Failed to send image");
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+    } finally {
+      URL.revokeObjectURL(tempUrl);
     }
     setIsSending(false);
   };
@@ -292,13 +369,11 @@ export function ChatDialog({
 
         if (error) {
           toast.error("Failed to share location");
-          console.error("Error sharing location:", error);
         } else {
           toast.success("Location shared");
         }
       },
-      (error) => {
-        console.error("Geolocation error:", error);
+      () => {
         toast.error("Failed to get your location");
       }
     );
@@ -371,21 +446,71 @@ export function ChatDialog({
       })
     : null;
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom
   const scrollToBottom = useCallback(() => {
-    setTimeout(() => {
-      if (scrollRef.current) {
-        const scrollContainer = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
-        if (scrollContainer) {
-          scrollContainer.scrollTop = scrollContainer.scrollHeight;
-        }
-      }
-    }, 100);
+    requestAnimationFrame(() => {
+      scrollEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    });
   }, []);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages, scrollToBottom]);
+
+  // Group messages with date separators
+  const renderMessages = () => {
+    const elements: React.ReactNode[] = [];
+    let lastDate: Date | null = null;
+
+    messages.forEach((msg) => {
+      const msgDate = new Date(msg.created_at);
+      if (!lastDate || !isSameDay(lastDate, msgDate)) {
+        elements.push(
+          <DateSeparator key={`date-${msg.created_at}`} date={msg.created_at} />
+        );
+        lastDate = msgDate;
+      }
+
+      const isOwn = msg.sender_id === currentUserId;
+      const senderProfile = profiles[msg.sender_id];
+      const locationData = msg.location_data as {
+        latitude: number;
+        longitude: number;
+        address?: string;
+      } | null;
+
+      elements.push(
+        <ChatMessage
+          key={msg.id}
+          content={msg.content}
+          isOwn={isOwn}
+          timestamp={msg.created_at}
+          isRead={msg.is_read}
+          senderName={
+            isOwn ? "You" : senderProfile?.full_name || otherUserName
+          }
+          senderAvatar={senderProfile?.avatar_url || undefined}
+          messageType={
+            msg.message_type as "text" | "image" | "location" | "live_location"
+          }
+          mediaUrl={msg.media_url || undefined}
+          locationData={
+            locationData
+              ? {
+                  latitude: locationData.latitude,
+                  longitude: locationData.longitude,
+                  isLive: msg.message_type === "live_location",
+                  address: locationData.address,
+                }
+              : undefined
+          }
+          onLocationClick={handleLocationClick}
+        />
+      );
+    });
+
+    return elements;
+  };
 
   return (
     <>
@@ -403,72 +528,38 @@ export function ChatDialog({
             isLiveSharing={isLiveSharing}
           />
 
-          <ScrollArea className="flex-1 overflow-hidden" ref={scrollRef}>
-            <div className="p-4">
+          <div
+            ref={messagesContainerRef}
+            className="flex-1 overflow-y-auto overscroll-contain"
+          >
+            <div className="p-4 min-h-full flex flex-col justify-end">
               {isLoading ? (
-                <div className="flex items-center justify-center h-[60vh]">
+                <div className="flex items-center justify-center flex-1">
                   <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                 </div>
               ) : messages.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-[60vh] text-center">
+                <div className="flex flex-col items-center justify-center flex-1 text-center">
                   <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
                     <span className="text-2xl">💬</span>
                   </div>
-                  <p className="text-muted-foreground text-sm">No messages yet</p>
+                  <p className="text-muted-foreground text-sm font-medium">
+                    No messages yet
+                  </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Start the conversation!
+                    Start the conversation about{" "}
+                    <span className="font-medium text-foreground">
+                      {itemName}
+                    </span>
                   </p>
                 </div>
               ) : (
-                <div className="space-y-4 pb-4">
-                  {messages.map((msg) => {
-                    const isOwn = msg.sender_id === currentUserId;
-                    const senderProfile = profiles[msg.sender_id];
-                    const locationData = msg.location_data as {
-                      latitude: number;
-                      longitude: number;
-                      address?: string;
-                    } | null;
-
-                    return (
-                      <ChatMessage
-                        key={msg.id}
-                        content={msg.content}
-                        isOwn={isOwn}
-                        timestamp={msg.created_at}
-                        isRead={msg.is_read}
-                        senderName={
-                          isOwn
-                            ? "You"
-                            : senderProfile?.full_name || otherUserName
-                        }
-                        senderAvatar={senderProfile?.avatar_url || undefined}
-                        messageType={
-                          msg.message_type as
-                            | "text"
-                            | "image"
-                            | "location"
-                            | "live_location"
-                        }
-                        mediaUrl={msg.media_url || undefined}
-                        locationData={
-                          locationData
-                            ? {
-                                latitude: locationData.latitude,
-                                longitude: locationData.longitude,
-                                isLive: msg.message_type === "live_location",
-                                address: locationData.address,
-                              }
-                            : undefined
-                        }
-                        onLocationClick={handleLocationClick}
-                      />
-                    );
-                  })}
+                <div className="space-y-3">
+                  {renderMessages()}
                 </div>
               )}
+              <div ref={scrollEndRef} />
             </div>
-          </ScrollArea>
+          </div>
 
           <ChatInput
             onSendMessage={handleSendMessage}
