@@ -16,6 +16,14 @@ import { toast } from "sonner";
 type Item = Database["public"]["Tables"]["items"]["Row"];
 type RequestCount = { item_id: string; count: number };
 
+interface ReceiverInfo {
+  item_id: string;
+  receiver_name: string;
+  receiver_avatar: string | null;
+  receiver_city: string | null;
+  completed_at: string;
+}
+
 export default function MyPosts() {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
