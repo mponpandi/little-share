@@ -8,6 +8,7 @@ import Dashboard from "@/pages/Dashboard";
 import Browse from "@/pages/Browse";
 import AddItem from "@/pages/AddItem";
 import MyPosts from "@/pages/MyPosts";
+import ItemsReceived from "@/pages/ItemsReceived";
 import Requests from "@/pages/Requests";
 import Profile from "@/pages/Profile";
 import EditProfile from "@/pages/EditProfile";
