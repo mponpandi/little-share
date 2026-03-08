@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { BottomNav } from "@/components/BottomNav";
 import { CategoryCard } from "@/components/CategoryCard";
 import { ItemCard } from "@/components/ItemCard";
+import { StaggeredGrid, StaggeredItem } from "@/components/StaggeredList";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
