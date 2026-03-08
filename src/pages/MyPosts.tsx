@@ -31,6 +31,7 @@ export default function MyPosts() {
   const [activeItems, setActiveItems] = useState<Item[]>([]);
   const [completedItems, setCompletedItems] = useState<Item[]>([]);
   const [requestCounts, setRequestCounts] = useState<Record<string, number>>({});
+  const [receiverInfoMap, setReceiverInfoMap] = useState<Record<string, ReceiverInfo>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [aiAnalysisItem, setAiAnalysisItem] = useState<{
     itemId: string;
