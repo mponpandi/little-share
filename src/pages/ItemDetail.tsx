@@ -396,7 +396,6 @@ const ItemDetail = () => {
           </Card>
         )}
       </div>
-      </div>
 
       {/* Fullscreen Image Lightbox */}
       {fullscreenOpen && imageUrls.length > 0 && (
