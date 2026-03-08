@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, MapPin, Phone, Clock, User, Heart, MessageSquare, CheckCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, MapPin, Phone, Clock, User, Heart, MessageSquare, CheckCircle, ChevronLeft, ChevronRight, X, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -60,6 +60,12 @@ const ItemDetail = () => {
   const [userId, setUserId] = useState<string | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [fullscreenOpen, setFullscreenOpen] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const isDragging = useRef(false);
+  const dragStart = useRef({ x: 0, y: 0 });
+  const lastPanOffset = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -200,7 +206,8 @@ const ItemDetail = () => {
             <img
               src={imageUrls[currentImageIndex]}
               alt={item.name}
-              className="w-full h-full object-cover transition-opacity duration-300"
+              className="w-full h-full object-cover transition-opacity duration-300 cursor-zoom-in"
+              onClick={() => { setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); setFullscreenOpen(true); }}
             />
             {imageUrls.length > 1 && (
               <>
@@ -389,6 +396,100 @@ const ItemDetail = () => {
           </Card>
         )}
       </div>
+
+      {/* Fullscreen Image Lightbox */}
+      {fullscreenOpen && imageUrls.length > 0 && (
+        <div className="fixed inset-0 z-[100] bg-black flex flex-col">
+          {/* Top bar */}
+          <div className="flex items-center justify-between p-4 text-white z-10">
+            <span className="text-sm font-medium">{currentImageIndex + 1} / {imageUrls.length}</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setZoomLevel(z => Math.max(1, z - 0.5))}
+                className="p-2 rounded-full bg-white/10 backdrop-blur-sm"
+              >
+                <ZoomOut className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setZoomLevel(z => Math.min(4, z + 0.5))}
+                className="p-2 rounded-full bg-white/10 backdrop-blur-sm"
+              >
+                <ZoomIn className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setFullscreenOpen(false)}
+                className="p-2 rounded-full bg-white/10 backdrop-blur-sm"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Image area */}
+          <div
+            className="flex-1 flex items-center justify-center overflow-hidden relative"
+            onPointerDown={(e) => {
+              if (zoomLevel > 1) {
+                isDragging.current = true;
+                dragStart.current = { x: e.clientX - panOffset.x, y: e.clientY - panOffset.y };
+                lastPanOffset.current = panOffset;
+              }
+            }}
+            onPointerMove={(e) => {
+              if (isDragging.current && zoomLevel > 1) {
+                setPanOffset({ x: e.clientX - dragStart.current.x, y: e.clientY - dragStart.current.y });
+              }
+            }}
+            onPointerUp={() => { isDragging.current = false; }}
+            onDoubleClick={() => {
+              if (zoomLevel > 1) {
+                setZoomLevel(1);
+                setPanOffset({ x: 0, y: 0 });
+              } else {
+                setZoomLevel(2.5);
+              }
+            }}
+          >
+            <img
+              src={imageUrls[currentImageIndex]}
+              alt={item.name}
+              className="max-w-full max-h-full object-contain select-none transition-transform duration-200"
+              style={{
+                transform: `scale(${zoomLevel}) translate(${panOffset.x / zoomLevel}px, ${panOffset.y / zoomLevel}px)`,
+              }}
+              draggable={false}
+            />
+          </div>
+
+          {/* Navigation */}
+          {imageUrls.length > 1 && (
+            <>
+              <button
+                onClick={() => { setCurrentImageIndex(i => (i - 1 + imageUrls.length) % imageUrls.length); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }}
+                className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/10 backdrop-blur-sm text-white z-10"
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+              <button
+                onClick={() => { setCurrentImageIndex(i => (i + 1) % imageUrls.length); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/10 backdrop-blur-sm text-white z-10"
+              >
+                <ChevronRight className="w-6 h-6" />
+              </button>
+              {/* Dots */}
+              <div className="flex justify-center gap-1.5 pb-6">
+                {imageUrls.map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => { setCurrentImageIndex(idx); setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); }}
+                    className={`w-2 h-2 rounded-full transition-all ${idx === currentImageIndex ? "bg-white w-4" : "bg-white/40"}`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 };
