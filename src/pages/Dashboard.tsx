@@ -151,7 +151,7 @@ export default function Dashboard() {
   const firstName = profile?.full_name?.split(" ")[0] || "Friend";
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <PullToRefresh onRefresh={fetchData} className="min-h-screen bg-background pb-20">
       {/* Header */}
       <div className="gradient-primary p-4 pb-8 rounded-b-[2rem]">
         <div className="flex items-center justify-between mb-4">
