@@ -167,6 +167,22 @@ export const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
               </span>
             )}
           </div>
+
+          {isOwn && showSeenReceipt && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex items-center gap-1 self-end mt-0.5"
+            >
+              <Avatar className="w-4 h-4">
+                <AvatarImage src={seenAvatar} alt={seenName || "Seen"} />
+                <AvatarFallback className="text-[6px] bg-muted text-muted-foreground">
+                  {(seenName || "U").charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-[10px] text-muted-foreground">Seen</span>
+            </motion.div>
+          )}
         </div>
       </motion.div>
     );
