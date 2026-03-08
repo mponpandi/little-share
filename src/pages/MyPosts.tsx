@@ -61,7 +61,8 @@ export default function MyPosts() {
 
     if (items) {
       setActiveItems(items.filter((item) => item.is_available));
-      setCompletedItems(items.filter((item) => !item.is_available));
+      const completed = items.filter((item) => !item.is_available);
+      setCompletedItems(completed);
 
       // Fetch pending request counts for each active item
       const activeItemIds = items.filter((item) => item.is_available).map((item) => item.id);
@@ -78,6 +79,44 @@ export default function MyPosts() {
             counts[req.item_id] = (counts[req.item_id] || 0) + 1;
           });
           setRequestCounts(counts);
+        }
+      }
+
+      // Fetch receiver info for completed/accepted items
+      const completedItemIds = completed.map((item) => item.id);
+      if (completedItemIds.length > 0) {
+        const { data: acceptedRequests } = await supabase
+          .from("requests")
+          .select("item_id, receiver_id, updated_at")
+          .in("item_id", completedItemIds)
+          .in("status", ["accepted", "completed"]);
+
+        if (acceptedRequests && acceptedRequests.length > 0) {
+          const receiverIds = [...new Set(acceptedRequests.map((r) => r.receiver_id))];
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("id, full_name, avatar_url, city")
+            .in("id", receiverIds);
+
+          const profileMap = (profiles || []).reduce((acc, p) => {
+            acc[p.id] = p;
+            return acc;
+          }, {} as Record<string, { full_name: string; avatar_url: string | null; city: string | null }>);
+
+          const infoMap: Record<string, ReceiverInfo> = {};
+          acceptedRequests.forEach((r) => {
+            const p = profileMap[r.receiver_id];
+            if (p) {
+              infoMap[r.item_id] = {
+                item_id: r.item_id,
+                receiver_name: p.full_name,
+                receiver_avatar: p.avatar_url,
+                receiver_city: p.city,
+                completed_at: r.updated_at,
+              };
+            }
+          });
+          setReceiverInfoMap(infoMap);
         }
       }
     }
