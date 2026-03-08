@@ -26,32 +26,34 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Splash />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/email-confirmation" element={<EmailConfirmation />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/browse" element={<Browse />} />
-          <Route path="/add-item" element={<AddItem />} />
-          <Route path="/my-posts" element={<MyPosts />} />
-          <Route path="/requests" element={<Requests />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/edit-profile" element={<EditProfile />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/privacy" element={<Privacy />} />
-          <Route path="/help" element={<Help />} />
-          <Route path="/notifications" element={<Notifications />} />
-          <Route path="/map" element={<MapPage />} />
-          <Route path="/item/:id" element={<ItemDetail />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Splash />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/email-confirmation" element={<EmailConfirmation />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/browse" element={<Browse />} />
+            <Route path="/add-item" element={<AddItem />} />
+            <Route path="/my-posts" element={<MyPosts />} />
+            <Route path="/requests" element={<Requests />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/edit-profile" element={<EditProfile />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/help" element={<Help />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/map" element={<MapPage />} />
+            <Route path="/item/:id" element={<ItemDetail />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 
