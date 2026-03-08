@@ -206,7 +206,8 @@ const ItemDetail = () => {
             <img
               src={imageUrls[currentImageIndex]}
               alt={item.name}
-              className="w-full h-full object-cover transition-opacity duration-300"
+              className="w-full h-full object-cover transition-opacity duration-300 cursor-zoom-in"
+              onClick={() => { setZoomLevel(1); setPanOffset({ x: 0, y: 0 }); setFullscreenOpen(true); }}
             />
             {imageUrls.length > 1 && (
               <>
