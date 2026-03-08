@@ -66,7 +66,7 @@ export default function Settings() {
                   Switch to dark theme
                 </p>
               </div>
-              <Switch checked={darkMode} onCheckedChange={setDarkMode} />
+              <Switch checked={theme === "dark"} onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")} />
             </div>
             <div className="flex items-center justify-between">
               <div>
