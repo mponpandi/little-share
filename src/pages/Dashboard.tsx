@@ -162,19 +162,22 @@ export default function Dashboard() {
             <p className="text-white/80 text-sm">Welcome back,</p>
             <h1 className="text-white font-heading font-bold text-xl">{firstName} 👋</h1>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="relative bg-white/10 hover:bg-white/20 text-white rounded-full"
-            onClick={() => navigate("/notifications")}
-          >
-            <Bell className="w-5 h-5" />
-            {unreadNotifications > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-gold text-xs font-bold rounded-full flex items-center justify-center text-foreground">
-                {unreadNotifications > 9 ? "9+" : unreadNotifications}
-              </span>
-            )}
-          </Button>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="relative bg-white/10 hover:bg-white/20 text-white rounded-full"
+              onClick={() => navigate("/notifications")}
+            >
+              <Bell className="w-5 h-5" />
+              {unreadNotifications > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-gold text-xs font-bold rounded-full flex items-center justify-center text-foreground">
+                  {unreadNotifications > 9 ? "9+" : unreadNotifications}
+                </span>
+              )}
+            </Button>
+          </div>
         </div>
 
         {/* Search */}
