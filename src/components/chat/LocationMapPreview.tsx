@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from "react-leaflet";
+import { useEffect, useState, useCallback } from "react";
+import { MapContainer, TileLayer, Marker, Popup, useMap, Circle, Polyline } from "react-leaflet";
 import L from "leaflet";
 import { Button } from "@/components/ui/button";
-import { X, Navigation, Layers, MapPin, ExternalLink, Copy, ChevronUp } from "lucide-react";
+import { X, Navigation, Layers, MapPin, Copy, Locate, Route } from "lucide-react";
 import { toast } from "sonner";
 import "leaflet/dist/leaflet.css";
 
@@ -55,30 +55,35 @@ const createMarkerIcon = (isCurrentUser: boolean, isLive: boolean) => {
   });
 };
 
-function MapUpdater({ locations }: { locations: Location[] }) {
+const currentLocationIcon = L.divIcon({
+  className: "current-loc-marker",
+  html: `
+    <div class="relative flex items-center justify-center">
+      <div class="absolute w-10 h-10 bg-blue-500/20 rounded-full animate-ping"></div>
+      <div class="absolute w-7 h-7 bg-blue-500/15 rounded-full animate-pulse"></div>
+      <div class="relative w-4 h-4 bg-blue-600 rounded-full border-[3px] border-white shadow-lg z-10"></div>
+    </div>
+  `,
+  iconSize: [40, 40],
+  iconAnchor: [20, 20],
+});
+
+function MapUpdater({ locations, routeLine }: { locations: Location[]; routeLine: [number, number][] | null }) {
   const map = useMap();
 
   useEffect(() => {
-    if (locations.length > 0) {
+    if (routeLine && routeLine.length >= 2) {
+      const bounds = L.latLngBounds(routeLine);
+      map.flyToBounds(bounds, { padding: [80, 80], maxZoom: 16, duration: 1 });
+    } else if (locations.length > 0) {
       const bounds = L.latLngBounds(
         locations.map((loc) => [loc.latitude, loc.longitude])
       );
       map.flyToBounds(bounds, { padding: [60, 60], maxZoom: 16, duration: 0.8 });
     }
-  }, [locations, map]);
+  }, [locations, map, routeLine]);
 
   return null;
-}
-
-// Reliable external link opener that works in iframes
-function openExternalLink(url: string) {
-  const a = document.createElement("a");
-  a.href = url;
-  a.target = "_blank";
-  a.rel = "noopener noreferrer";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
 }
 
 export function LocationMapPreview({
@@ -87,7 +92,11 @@ export function LocationMapPreview({
   onNavigate,
 }: LocationMapPreviewProps) {
   const [mapType, setMapType] = useState<MapType>("street");
-  const [showNavOptions, setShowNavOptions] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [routeLine, setRouteLine] = useState<[number, number][] | null>(null);
+  const [distance, setDistance] = useState<string | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
 
   const center =
@@ -104,26 +113,63 @@ export function LocationMapPreview({
   const otherLocations = locations.filter((loc) => !loc.isCurrentUser);
   const targetLoc = selectedLocation || otherLocations[0] || locations[0];
 
-  const openGoogleMaps = (lat: number, lng: number) => {
-    openExternalLink(
-      `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`
-    );
-    onNavigate?.(lat, lng);
-  };
+  const calcDistance = useCallback((lat1: number, lng1: number, lat2: number, lng2: number) => {
+    const R = 6371;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLng = ((lng2 - lng1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }, []);
 
-  const openAppleMaps = (lat: number, lng: number) => {
-    openExternalLink(
-      `https://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`
-    );
-    onNavigate?.(lat, lng);
-  };
+  const handleNavigate = useCallback(() => {
+    if (!targetLoc) return;
 
-  const openWaze = (lat: number, lng: number) => {
-    openExternalLink(
-      `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`
+    setIsLocating(true);
+    if (!navigator.geolocation) {
+      toast.error("Geolocation is not supported by your browser");
+      setIsLocating(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const userLat = position.coords.latitude;
+        const userLng = position.coords.longitude;
+        setUserLocation({ lat: userLat, lng: userLng });
+
+        const routePoints: [number, number][] = [
+          [userLat, userLng],
+          [targetLoc.latitude, targetLoc.longitude],
+        ];
+        setRouteLine(routePoints);
+
+        const dist = calcDistance(userLat, userLng, targetLoc.latitude, targetLoc.longitude);
+        setDistance(dist < 1 ? `${Math.round(dist * 1000)} m` : `${dist.toFixed(1)} km`);
+
+        setIsNavigating(true);
+        setIsLocating(false);
+        onNavigate?.(targetLoc.latitude, targetLoc.longitude);
+      },
+      () => {
+        toast.error("Could not get your location. Please enable location access.");
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
     );
-    onNavigate?.(lat, lng);
-  };
+  }, [targetLoc, calcDistance, onNavigate]);
+
+  const stopNavigation = useCallback(() => {
+    setIsNavigating(false);
+    setRouteLine(null);
+    setUserLocation(null);
+    setDistance(null);
+  }, []);
 
   const copyCoordinates = (lat: number, lng: number) => {
     navigator.clipboard.writeText(`${lat}, ${lng}`);
@@ -136,12 +182,20 @@ export function LocationMapPreview({
       <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-primary/10 to-accent/10 shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center">
-            <MapPin className="w-4 h-4 text-primary" />
+            {isNavigating ? (
+              <Route className="w-4 h-4 text-primary" />
+            ) : (
+              <MapPin className="w-4 h-4 text-primary" />
+            )}
           </div>
           <div>
-            <h3 className="font-semibold text-foreground">Location</h3>
+            <h3 className="font-semibold text-foreground">
+              {isNavigating ? "Navigating" : "Location"}
+            </h3>
             <p className="text-xs text-muted-foreground">
-              {locations.filter((l) => l.isLive).length > 0
+              {isNavigating && distance
+                ? `${distance} away from ${targetLoc?.userName}`
+                : locations.filter((l) => l.isLive).length > 0
                 ? "Live sharing active"
                 : "Shared location"}
             </p>
@@ -164,8 +218,9 @@ export function LocationMapPreview({
           {(mapType === "satellite" || mapType === "hybrid") && (
             <TileLayer url="https://mt1.google.com/vt/lyrs=h&x={x}&y={y}&z={z}" />
           )}
-          <MapUpdater locations={locations} />
+          <MapUpdater locations={locations} routeLine={routeLine} />
 
+          {/* Accuracy circles */}
           {locations
             .filter((loc) => loc.isLive && loc.accuracy)
             .map((loc) => (
@@ -182,6 +237,7 @@ export function LocationMapPreview({
               />
             ))}
 
+          {/* Location markers */}
           {locations.map((loc, index) => (
             <Marker
               key={`${loc.userId}-${index}`}
@@ -190,7 +246,7 @@ export function LocationMapPreview({
             >
               <Popup className="custom-popup">
                 <div className="text-center p-1 min-w-[120px]">
-                  <p className="font-semibold text-foreground">{loc.userName}</p>
+                  <p className="font-semibold">{loc.userName}</p>
                   {loc.isLive && (
                     <span className="inline-flex items-center gap-1 text-xs text-green-600 mt-1">
                       <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
@@ -201,6 +257,31 @@ export function LocationMapPreview({
               </Popup>
             </Marker>
           ))}
+
+          {/* User's current location marker */}
+          {userLocation && (
+            <Marker position={[userLocation.lat, userLocation.lng]} icon={currentLocationIcon}>
+              <Popup>
+                <div className="text-center p-1">
+                  <p className="font-semibold">You are here</p>
+                </div>
+              </Popup>
+            </Marker>
+          )}
+
+          {/* Route line */}
+          {routeLine && routeLine.length >= 2 && (
+            <Polyline
+              positions={routeLine}
+              pathOptions={{
+                color: "#4285F4",
+                weight: 4,
+                opacity: 0.8,
+                dashArray: "10, 10",
+                lineCap: "round",
+              }}
+            />
+          )}
         </MapContainer>
 
         {/* Map type toggle */}
@@ -208,18 +289,25 @@ export function LocationMapPreview({
           onClick={cycleMapType}
           size="sm"
           variant="secondary"
-          className="absolute top-3 right-3 z-[1000] shadow-lg bg-white/95 hover:bg-white text-foreground border"
+          className="absolute top-3 right-3 z-[1000] shadow-lg bg-background/95 hover:bg-background text-foreground border"
         >
           <Layers className="w-4 h-4 mr-1" />
           <span className="capitalize text-xs">{mapType}</span>
         </Button>
+
+        {/* Distance badge */}
+        {isNavigating && distance && (
+          <div className="absolute top-3 left-3 z-[1000] bg-primary text-primary-foreground px-3 py-1.5 rounded-full shadow-lg text-sm font-medium flex items-center gap-1.5">
+            <Route className="w-3.5 h-3.5" />
+            {distance}
+          </div>
+        )}
       </div>
 
       {/* Bottom Navigation Panel */}
       <div className="bg-background border-t shrink-0 safe-area-bottom">
         {targetLoc && !targetLoc.isCurrentUser && (
           <>
-            {/* Coordinates info bar */}
             <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
               <div className="flex items-center gap-2">
                 <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
@@ -237,62 +325,48 @@ export function LocationMapPreview({
               </Button>
             </div>
 
-            {/* Main navigate button */}
-            <div className="p-3">
-              <Button
-                onClick={() => openGoogleMaps(targetLoc.latitude, targetLoc.longitude)}
-                className="w-full bg-[#4285F4] hover:bg-[#3367D6] text-white shadow-md h-12 text-base font-medium"
-              >
-                <Navigation className="w-5 h-5 mr-2" />
-                Navigate to {targetLoc.userName}
-                {targetLoc.isLive && (
-                  <span className="ml-2 px-2 py-0.5 bg-green-500 text-white text-xs rounded-full">
-                    Live
-                  </span>
-                )}
-              </Button>
-            </div>
-
-            {/* More navigation options toggle */}
-            <div className="px-3 pb-3">
-              <button
-                onClick={() => setShowNavOptions(!showNavOptions)}
-                className="w-full flex items-center justify-center gap-1 text-xs text-muted-foreground py-1"
-              >
-                <span>More navigation options</span>
-                <ChevronUp className={`w-3.5 h-3.5 transition-transform ${showNavOptions ? "" : "rotate-180"}`} />
-              </button>
-
-              {showNavOptions && (
-                <div className="grid grid-cols-3 gap-2 mt-2">
+            <div className="p-3 flex gap-2">
+              {!isNavigating ? (
+                <Button
+                  onClick={handleNavigate}
+                  disabled={isLocating}
+                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-md h-12 text-base font-medium"
+                >
+                  {isLocating ? (
+                    <>
+                      <Locate className="w-5 h-5 mr-2 animate-spin" />
+                      Getting your location...
+                    </>
+                  ) : (
+                    <>
+                      <Navigation className="w-5 h-5 mr-2" />
+                      Navigate to {targetLoc.userName}
+                      {targetLoc.isLive && (
+                        <span className="ml-2 px-2 py-0.5 bg-green-500 text-white text-xs rounded-full">
+                          Live
+                        </span>
+                      )}
+                    </>
+                  )}
+                </Button>
+              ) : (
+                <>
                   <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex flex-col items-center gap-1 h-auto py-3"
-                    onClick={() => openGoogleMaps(targetLoc.latitude, targetLoc.longitude)}
+                    onClick={handleNavigate}
+                    className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md h-12 text-sm font-medium"
                   >
-                    <ExternalLink className="w-4 h-4 text-[#4285F4]" />
-                    <span className="text-[10px]">Google Maps</span>
+                    <Locate className="w-4 h-4 mr-1.5" />
+                    Refresh Route
                   </Button>
                   <Button
+                    onClick={stopNavigation}
                     variant="outline"
-                    size="sm"
-                    className="flex flex-col items-center gap-1 h-auto py-3"
-                    onClick={() => openAppleMaps(targetLoc.latitude, targetLoc.longitude)}
+                    className="h-12 px-4 border-destructive text-destructive hover:bg-destructive/10"
                   >
-                    <ExternalLink className="w-4 h-4 text-[#333]" />
-                    <span className="text-[10px]">Apple Maps</span>
+                    <X className="w-4 h-4 mr-1.5" />
+                    Stop
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex flex-col items-center gap-1 h-auto py-3"
-                    onClick={() => openWaze(targetLoc.latitude, targetLoc.longitude)}
-                  >
-                    <ExternalLink className="w-4 h-4 text-[#33CCFF]" />
-                    <span className="text-[10px]">Waze</span>
-                  </Button>
-                </div>
+                </>
               )}
             </div>
           </>
