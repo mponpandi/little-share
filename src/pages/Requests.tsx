@@ -13,6 +13,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { AIRequestAnalysis } from "@/components/AIRequestAnalysis";
 import { ChatDialog } from "@/components/ChatDialog";
 import { notifyRequestAccepted, notifyRequestDeclined } from "@/lib/notifications";
+import { PullToRefresh } from "@/components/PullToRefresh";
 
 type Request = Database["public"]["Tables"]["requests"]["Row"] & {
   items?: {
