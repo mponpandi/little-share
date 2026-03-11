@@ -288,6 +288,6 @@ export default function Notifications() {
           }}
         />
       )}
-    </div>
+    </PullToRefresh>
   );
 }

@@ -12,6 +12,7 @@ import { ArrowLeft, Plus, Package, Sparkles, Users, MapPin, Calendar } from "luc
 import { User } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { AIRequestAnalysis } from "@/components/AIRequestAnalysis";
+import { PullToRefresh } from "@/components/PullToRefresh";
 import { toast } from "sonner";
 
 type Item = Database["public"]["Tables"]["items"]["Row"];

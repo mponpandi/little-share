@@ -194,6 +194,6 @@ export default function ItemsReceived() {
       </div>
 
       <BottomNav />
-    </div>
+    </PullToRefresh>
   );
 }

@@ -365,7 +365,7 @@ export default function Requests() {
       </div>
 
       <BottomNav />
-    </div>
+    </PullToRefresh>
   );
 }
 
