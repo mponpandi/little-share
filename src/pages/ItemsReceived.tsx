@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ArrowLeft, Package, User, Calendar, MapPin } from "lucide-react";
 import { User as SupabaseUser } from "@supabase/supabase-js";
+import { PullToRefresh } from "@/components/PullToRefresh";
 
 interface ReceivedItem {
   request_id: string;
@@ -105,8 +106,12 @@ export default function ItemsReceived() {
     fair: "Fair",
   };
 
+  const handleRefresh = async () => {
+    if (user) await fetchReceivedItems(user.id);
+  };
+
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <PullToRefresh onRefresh={handleRefresh} className="min-h-screen bg-background pb-20">
       <div className="gradient-purple p-4 pb-6 rounded-b-[2rem]">
         <div className="flex items-center space-x-3">
           <Button
@@ -189,6 +194,6 @@ export default function ItemsReceived() {
       </div>
 
       <BottomNav />
-    </div>
+    </PullToRefresh>
   );
 }

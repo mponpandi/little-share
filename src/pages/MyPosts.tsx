@@ -12,6 +12,7 @@ import { ArrowLeft, Plus, Package, Sparkles, Users, MapPin, Calendar } from "luc
 import { User } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { AIRequestAnalysis } from "@/components/AIRequestAnalysis";
+import { PullToRefresh } from "@/components/PullToRefresh";
 import { toast } from "sonner";
 
 type Item = Database["public"]["Tables"]["items"]["Row"];
@@ -176,8 +177,12 @@ export default function MyPosts() {
     if (user) fetchItems(user.id);
   };
 
+  const handleRefresh = async () => {
+    if (user) await fetchItems(user.id);
+  };
+
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <PullToRefresh onRefresh={handleRefresh} className="min-h-screen bg-background pb-20">
       {/* Header */}
       <div className="gradient-accent p-4 pb-6 rounded-b-[2rem]">
         <div className="flex items-center space-x-3">
@@ -367,7 +372,7 @@ export default function MyPosts() {
       </div>
 
       <BottomNav />
-    </div>
+    </PullToRefresh>
   );
 }
 

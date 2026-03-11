@@ -7,6 +7,7 @@ import { ArrowLeft, Bell, Gift, Heart, Check, CheckCheck, X, MessageCircle } fro
 import { User } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { ChatDialog } from "@/components/ChatDialog";
+import { PullToRefresh } from "@/components/PullToRefresh";
 
 type Notification = Database["public"]["Tables"]["notifications"]["Row"];
 
@@ -168,8 +169,12 @@ export default function Notifications() {
     return d.toLocaleDateString();
   };
 
+  const handleRefresh = async () => {
+    if (user) await fetchNotifications(user.id);
+  };
+
   return (
-    <div className="min-h-screen bg-background pb-8">
+    <PullToRefresh onRefresh={handleRefresh} className="min-h-screen bg-background pb-8">
       {/* Header */}
       <div className="gradient-primary p-4 pb-6 rounded-b-[2rem]">
         <div className="flex items-center justify-between">
@@ -283,6 +288,6 @@ export default function Notifications() {
           }}
         />
       )}
-    </div>
+    </PullToRefresh>
   );
 }

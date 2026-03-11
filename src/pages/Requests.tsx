@@ -13,6 +13,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { AIRequestAnalysis } from "@/components/AIRequestAnalysis";
 import { ChatDialog } from "@/components/ChatDialog";
 import { notifyRequestAccepted, notifyRequestDeclined } from "@/lib/notifications";
+import { PullToRefresh } from "@/components/PullToRefresh";
 
 type Request = Database["public"]["Tables"]["requests"]["Row"] & {
   items?: {
@@ -255,8 +256,12 @@ export default function Requests() {
     (group) => group.requests.length > 1
   );
 
+  const handleRefresh = async () => {
+    if (user) await fetchRequests(user.id);
+  };
+
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <PullToRefresh onRefresh={handleRefresh} className="min-h-screen bg-background pb-20">
       {/* Header */}
       <div className="gradient-gold p-4 pb-6 rounded-b-[2rem]">
         <div className="flex items-center space-x-3">
@@ -360,7 +365,7 @@ export default function Requests() {
       </div>
 
       <BottomNav />
-    </div>
+    </PullToRefresh>
   );
 }
 
