@@ -256,8 +256,12 @@ export default function Requests() {
     (group) => group.requests.length > 1
   );
 
+  const handleRefresh = async () => {
+    if (user) await fetchRequests(user.id);
+  };
+
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <PullToRefresh onRefresh={handleRefresh} className="min-h-screen bg-background pb-20">
       {/* Header */}
       <div className="gradient-gold p-4 pb-6 rounded-b-[2rem]">
         <div className="flex items-center space-x-3">
