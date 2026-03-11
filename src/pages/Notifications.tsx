@@ -7,6 +7,7 @@ import { ArrowLeft, Bell, Gift, Heart, Check, CheckCheck, X, MessageCircle } fro
 import { User } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { ChatDialog } from "@/components/ChatDialog";
+import { PullToRefresh } from "@/components/PullToRefresh";
 
 type Notification = Database["public"]["Tables"]["notifications"]["Row"];
 
