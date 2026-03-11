@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ArrowLeft, Package, User, Calendar, MapPin } from "lucide-react";
 import { User as SupabaseUser } from "@supabase/supabase-js";
+import { PullToRefresh } from "@/components/PullToRefresh";
 
 interface ReceivedItem {
   request_id: string;
