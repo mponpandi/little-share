@@ -42,6 +42,8 @@ export function PullToRefresh({ onRefresh, children, className }: PullToRefreshP
       const diff = currentY - startY.current;
 
       if (diff > 0 && isAtTop()) {
+        // Prevent browser's native pull-to-refresh
+        e.preventDefault();
         // Apply resistance curve
         const distance = Math.min(diff * 0.5, MAX_PULL);
         setPullDistance(distance);
@@ -75,7 +77,8 @@ export function PullToRefresh({ onRefresh, children, className }: PullToRefreshP
   return (
     <div
       ref={containerRef}
-      className={`overflow-y-auto ${className || ""}`}
+      className={`overflow-y-auto overscroll-none ${className || ""}`}
+      style={{ touchAction: "pan-down" }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
