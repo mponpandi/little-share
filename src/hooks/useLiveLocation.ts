@@ -101,8 +101,25 @@ export function useLiveLocation(requestId: string, currentUserId: string) {
       }
 
       return new Promise<boolean>((resolve) => {
-        navigator.geolocation.getCurrentPosition(
-          async (position) => {
+        // High accuracy with fallback
+        const getPosition = (): Promise<GeolocationPosition> => {
+          return new Promise((res, rej) => {
+            navigator.geolocation.getCurrentPosition(
+              res,
+              () => {
+                navigator.geolocation.getCurrentPosition(
+                  res,
+                  rej,
+                  { enableHighAccuracy: false, timeout: 30000, maximumAge: 0 }
+                );
+              },
+              { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            );
+          });
+        };
+
+        getPosition()
+          .then(async (position) => {
             const expiresAt = new Date(
               Date.now() + durationMinutes * 60 * 1000
             ).toISOString();
@@ -132,7 +149,7 @@ export function useLiveLocation(requestId: string, currentUserId: string) {
               lng: position.coords.longitude,
             });
 
-            // Start watching position
+            // Start watching position with high accuracy
             watchIdRef.current = navigator.geolocation.watchPosition(
               async (pos) => {
                 setCurrentLocation({
@@ -155,14 +172,12 @@ export function useLiveLocation(requestId: string, currentUserId: string) {
 
             toast.success("Live location sharing started");
             resolve(true);
-          },
-          (error) => {
+          })
+          .catch((error) => {
             console.error("Geolocation error:", error);
-            toast.error("Failed to get your location");
+            toast.error("Failed to get your location. Please enable location access.");
             resolve(false);
-          },
-          { enableHighAccuracy: true }
-        );
+          });
       });
     },
     [requestId, currentUserId]
