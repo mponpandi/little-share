@@ -346,37 +346,53 @@ export function ChatDialog({
     setIsSending(false);
   };
 
+  const getHighAccuracyPosition = (): Promise<GeolocationPosition> => {
+    return new Promise((resolve, reject) => {
+      // Try high accuracy first (GPS)
+      navigator.geolocation.getCurrentPosition(
+        resolve,
+        () => {
+          // Fallback to network-based location
+          navigator.geolocation.getCurrentPosition(
+            resolve,
+            reject,
+            { enableHighAccuracy: false, timeout: 30000, maximumAge: 0 }
+          );
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    });
+  };
+
   const handleShareLocation = async () => {
     if (!navigator.geolocation) {
       toast.error("Geolocation is not supported");
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const locationData = {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        };
+    try {
+      const position = await getHighAccuracyPosition();
+      const locationData = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      };
 
-        const { error } = await supabase.from("messages").insert({
-          request_id: requestId,
-          sender_id: currentUserId,
-          content: "Shared location",
-          message_type: "location",
-          location_data: locationData,
-        });
+      const { error } = await supabase.from("messages").insert({
+        request_id: requestId,
+        sender_id: currentUserId,
+        content: "Shared location",
+        message_type: "location",
+        location_data: locationData,
+      });
 
-        if (error) {
-          toast.error("Failed to share location");
-        } else {
-          toast.success("Location shared");
-        }
-      },
-      () => {
-        toast.error("Failed to get your location");
+      if (error) {
+        toast.error("Failed to share location");
+      } else {
+        toast.success("Location shared");
       }
-    );
+    } catch {
+      toast.error("Failed to get your location. Please enable location access.");
+    }
   };
 
   const handleStartLiveLocation = async () => {

@@ -106,6 +106,67 @@ const createNavArrowIcon = (heading: number) => L.divIcon({
   iconAnchor: [28, 28],
 });
 
+// Fetch actual road route from OSRM (free, no API key needed)
+async function fetchRoute(
+  fromLat: number, fromLng: number,
+  toLat: number, toLng: number
+): Promise<{ coordinates: [number, number][]; distance: number; duration: number } | null> {
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson&steps=true`;
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (data.code === "Ok" && data.routes && data.routes.length > 0) {
+      const route = data.routes[0];
+      // OSRM returns [lng, lat], we need [lat, lng] for Leaflet
+      const coordinates: [number, number][] = route.geometry.coordinates.map(
+        (coord: [number, number]) => [coord[1], coord[0]]
+      );
+      return {
+        coordinates,
+        distance: route.distance, // in meters
+        duration: route.duration, // in seconds
+      };
+    }
+    return null;
+  } catch (err) {
+    console.error("OSRM routing error:", err);
+    return null;
+  }
+}
+
+function formatDistance(meters: number): string {
+  if (meters < 1000) return `${Math.round(meters)} m`;
+  return `${(meters / 1000).toFixed(1)} km`;
+}
+
+function formatDuration(seconds: number): string {
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 1) return "< 1 min";
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m > 0 ? `${h} hr ${m} min` : `${h} hr`;
+}
+
+// High accuracy location with fallback
+function getHighAccuracyPosition(): Promise<GeolocationPosition> {
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(
+      resolve,
+      () => {
+        // Fallback to network-based
+        navigator.geolocation.getCurrentPosition(
+          resolve,
+          reject,
+          { enableHighAccuracy: false, timeout: 30000, maximumAge: 0 }
+        );
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  });
+}
+
 function MapController({ locations, routeLine, isNavigating, userLocation }: { 
   locations: Location[]; 
   routeLine: [number, number][] | null;
@@ -177,7 +238,9 @@ export function LocationMapPreview({
   const [eta, setEta] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [sheetExpanded, setSheetExpanded] = useState(false);
+  const [routeError, setRouteError] = useState(false);
   const watchIdRef = useRef<number | null>(null);
+  const routeUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const center =
     locations.length > 0
@@ -193,20 +256,6 @@ export function LocationMapPreview({
   const otherLocations = locations.filter((loc) => !loc.isCurrentUser);
   const targetLoc = otherLocations[0] || locations[0];
 
-  const calcDistance = useCallback((lat1: number, lng1: number, lat2: number, lng2: number) => {
-    const R = 6371;
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLng = ((lng2 - lng1) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLng / 2) *
-        Math.sin(dLng / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  }, []);
-
   const calcBearing = useCallback((lat1: number, lng1: number, lat2: number, lng2: number) => {
     const dLng = ((lng2 - lng1) * Math.PI) / 180;
     const y = Math.sin(dLng) * Math.cos((lat2 * Math.PI) / 180);
@@ -216,25 +265,32 @@ export function LocationMapPreview({
     return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
   }, []);
 
-  const calcEta = useCallback((distKm: number) => {
-    // Assume ~30 km/h average for city travel
-    const hours = distKm / 30;
-    const minutes = Math.round(hours * 60);
-    if (minutes < 1) return "< 1 min";
-    if (minutes < 60) return `${minutes} min`;
-    const h = Math.floor(minutes / 60);
-    const m = minutes % 60;
-    return m > 0 ? `${h} hr ${m} min` : `${h} hr`;
-  }, []);
-
-  const updateRouteInfo = useCallback((userLat: number, userLng: number) => {
+  // Fetch and update the road route
+  const updateRoute = useCallback(async (userLat: number, userLng: number) => {
     if (!targetLoc) return;
-    const dist = calcDistance(userLat, userLng, targetLoc.latitude, targetLoc.longitude);
-    setDistance(dist < 1 ? `${Math.round(dist * 1000)} m` : `${dist.toFixed(1)} km`);
-    setEta(calcEta(dist));
+    
     setHeading(calcBearing(userLat, userLng, targetLoc.latitude, targetLoc.longitude));
-    setRouteLine([[userLat, userLng], [targetLoc.latitude, targetLoc.longitude]]);
-  }, [targetLoc, calcDistance, calcEta, calcBearing]);
+    
+    const result = await fetchRoute(userLat, userLng, targetLoc.latitude, targetLoc.longitude);
+    
+    if (result) {
+      setRouteLine(result.coordinates);
+      setDistance(formatDistance(result.distance));
+      setEta(formatDuration(result.duration));
+      setRouteError(false);
+    } else {
+      // Fallback to straight line if routing fails
+      setRouteLine([[userLat, userLng], [targetLoc.latitude, targetLoc.longitude]]);
+      const R = 6371000;
+      const dLat = ((targetLoc.latitude - userLat) * Math.PI) / 180;
+      const dLng = ((targetLoc.longitude - userLng) * Math.PI) / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(userLat * Math.PI / 180) * Math.cos(targetLoc.latitude * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+      const distMeters = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      setDistance(formatDistance(distMeters));
+      setEta(formatDuration(distMeters / 8.33)); // ~30 km/h fallback
+      setRouteError(true);
+    }
+  }, [targetLoc, calcBearing]);
 
   const handleNavigate = useCallback(() => {
     if (!targetLoc) return;
@@ -246,13 +302,12 @@ export function LocationMapPreview({
       return;
     }
 
-    // Get initial position
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
+    getHighAccuracyPosition()
+      .then(async (position) => {
         const userLat = position.coords.latitude;
         const userLng = position.coords.longitude;
         setUserLocation({ lat: userLat, lng: userLng });
-        updateRouteInfo(userLat, userLng);
+        await updateRoute(userLat, userLng);
         setIsNavigating(true);
         setIsLocating(false);
         onNavigate?.(targetLoc.latitude, targetLoc.longitude);
@@ -266,24 +321,36 @@ export function LocationMapPreview({
             const lat = pos.coords.latitude;
             const lng = pos.coords.longitude;
             setUserLocation({ lat, lng });
-            updateRouteInfo(lat, lng);
+            setHeading(calcBearing(lat, lng, targetLoc.latitude, targetLoc.longitude));
+            
+            // Throttle route API calls to every 15 seconds
+            if (!routeUpdateTimer.current) {
+              routeUpdateTimer.current = setTimeout(() => {
+                updateRoute(lat, lng);
+                routeUpdateTimer.current = null;
+              }, 15000);
+            }
           },
-          () => {},
-          { enableHighAccuracy: true, maximumAge: 3000 }
+          (err) => {
+            console.error("Watch position error:", err);
+          },
+          { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }
         );
-      },
-      () => {
+      })
+      .catch(() => {
         toast.error("Could not get your location. Please enable location access.");
         setIsLocating(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
-  }, [targetLoc, updateRouteInfo, onNavigate]);
+      });
+  }, [targetLoc, updateRoute, onNavigate, calcBearing]);
 
   const stopNavigation = useCallback(() => {
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
+    }
+    if (routeUpdateTimer.current) {
+      clearTimeout(routeUpdateTimer.current);
+      routeUpdateTimer.current = null;
     }
     setIsNavigating(false);
     setRouteLine(null);
@@ -291,12 +358,35 @@ export function LocationMapPreview({
     setDistance(null);
     setEta(null);
     setSheetExpanded(false);
+    setRouteError(false);
   }, []);
+
+  // Open in external map app
+  const openInExternalApp = useCallback((app: "google" | "apple" | "waze") => {
+    if (!targetLoc) return;
+    const { latitude: lat, longitude: lng } = targetLoc;
+    let url = "";
+    switch (app) {
+      case "google":
+        url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+        break;
+      case "apple":
+        url = `https://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`;
+        break;
+      case "waze":
+        url = `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
+        break;
+    }
+    window.open(url, "_blank");
+  }, [targetLoc]);
 
   useEffect(() => {
     return () => {
       if (watchIdRef.current !== null) {
         navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+      if (routeUpdateTimer.current) {
+        clearTimeout(routeUpdateTimer.current);
       }
     };
   }, []);
@@ -379,6 +469,7 @@ export function LocationMapPreview({
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5">
                       to {targetLoc.userName}{targetLoc.isLive ? " • Live" : ""}
+                      {routeError && " • Straight line"}
                     </p>
                   </div>
                 </div>
@@ -397,7 +488,7 @@ export function LocationMapPreview({
                 <div className="w-7 h-7 rounded-lg bg-[#4285F4]/10 flex items-center justify-center">
                   <CornerUpRight className="w-4 h-4 text-[#4285F4]" />
                 </div>
-                <span className="text-sm text-gray-700">Head towards destination</span>
+                <span className="text-sm text-gray-700">Follow the route to destination</span>
               </div>
             </div>
           </div>
@@ -469,6 +560,32 @@ export function LocationMapPreview({
                   Live location sharing active
                 </div>
               )}
+              
+              {/* Open in external app buttons */}
+              <div className="space-y-2">
+                <p className="text-xs text-gray-500 font-medium">Open in Maps App</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => openInExternalApp("google")}
+                    className="flex-1 py-2 text-sm font-medium rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                  >
+                    Google Maps
+                  </button>
+                  <button
+                    onClick={() => openInExternalApp("apple")}
+                    className="flex-1 py-2 text-sm font-medium rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                  >
+                    Apple Maps
+                  </button>
+                  <button
+                    onClick={() => openInExternalApp("waze")}
+                    className="flex-1 py-2 text-sm font-medium rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                  >
+                    Waze
+                  </button>
+                </div>
+              </div>
+
               <button
                 onClick={handleNavigate}
                 className="w-full py-2.5 text-[#4285F4] font-medium text-sm rounded-lg border border-[#4285F4]/20 hover:bg-[#4285F4]/5 transition-colors flex items-center justify-center gap-2"
