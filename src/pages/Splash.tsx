@@ -51,7 +51,7 @@ export default function Splash() {
         {/* Logo */}
         <div className="relative">
           <div className="w-32 h-32 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-glow animate-pulse-soft">
-            <Gift className="w-16 h-16 text-white" strokeWidth={1.5} />
+            <img src="/logo.png" alt="LittleShare Logo" className="w-20 h-20 rounded-full" />
           </div>
           <div className="absolute -top-2 -right-2 w-8 h-8 bg-gold rounded-full flex items-center justify-center animate-bounce-gentle">
             <Sparkles className="w-4 h-4 text-white" />
