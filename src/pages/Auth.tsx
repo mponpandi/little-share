@@ -289,9 +289,7 @@ export default function Auth() {
       {/* Header */}
       <div className="gradient-primary p-6 pb-16 rounded-b-[2rem]">
         <div className="flex items-center justify-center space-x-3">
-          <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
-            <Gift className="w-6 h-6 text-white" />
-          </div>
+          <img src="/logo.png" alt="LittleShare Logo" className="w-12 h-12 rounded-xl" />
           <h1 className="text-2xl font-heading font-bold text-white">LittleShare</h1>
         </div>
       </div>
