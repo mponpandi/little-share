@@ -68,6 +68,21 @@ export default function Dashboard() {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+
+  // Show install banner once for non-installed users
+  useEffect(() => {
+    const dismissed = localStorage.getItem("install-banner-dismissed");
+    const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
+    if (!dismissed && !isStandalone) {
+      setShowInstallBanner(true);
+    }
+  }, []);
+
+  const dismissInstallBanner = () => {
+    setShowInstallBanner(false);
+    localStorage.setItem("install-banner-dismissed", "true");
+  };
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
