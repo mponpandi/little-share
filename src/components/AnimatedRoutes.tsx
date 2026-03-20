@@ -19,6 +19,7 @@ import Notifications from "@/pages/Notifications";
 import MapPage from "@/pages/Map";
 import ItemDetail from "@/pages/ItemDetail";
 import EmailConfirmation from "@/pages/EmailConfirmation";
+import Install from "@/pages/Install";
 import NotFound from "@/pages/NotFound";
 
 const routes = [
