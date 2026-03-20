@@ -97,6 +97,25 @@ export default function Settings() {
           </CardContent>
         </Card>
 
+        {/* Install App */}
+        <Card className="border-0 shadow-card">
+          <CardContent className="p-0">
+            <button
+              onClick={() => navigate("/install")}
+              className="flex items-center justify-between w-full p-4 hover:bg-muted/50 transition-colors"
+            >
+              <div className="flex items-center space-x-3">
+                <Download className="w-5 h-5 text-primary" />
+                <div className="text-left">
+                  <p className="font-medium">Install App</p>
+                  <p className="text-sm text-muted-foreground">Add to your home screen</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            </button>
+          </CardContent>
+        </Card>
+
         {/* App Info */}
         <div className="text-center pt-4">
           <p className="text-sm text-muted-foreground">LittleShare v1.0.0</p>
