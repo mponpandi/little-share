@@ -55,12 +55,57 @@ self.addEventListener('notificationclick', function(event) {
   );
 });
 
+const CACHE_NAME = 'littleshare-v1';
+const STATIC_ASSETS = [
+  '/',
+  '/manifest.json',
+];
+
 self.addEventListener('install', function(event) {
   console.log('[Service Worker] Installing...');
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(function(cache) {
+      return cache.addAll(STATIC_ASSETS);
+    })
+  );
   self.skipWaiting();
 });
 
 self.addEventListener('activate', function(event) {
   console.log('[Service Worker] Activating...');
-  event.waitUntil(clients.claim());
+  event.waitUntil(
+    caches.keys().then(function(cacheNames) {
+      return Promise.all(
+        cacheNames.filter(function(name) {
+          return name !== CACHE_NAME;
+        }).map(function(name) {
+          return caches.delete(name);
+        })
+      );
+    }).then(function() {
+      return clients.claim();
+    })
+  );
+});
+
+self.addEventListener('fetch', function(event) {
+  if (event.request.method !== 'GET') return;
+  // Skip API/supabase requests
+  const url = new URL(event.request.url);
+  if (url.pathname.startsWith('/rest/') || url.hostname.includes('supabase')) return;
+
+  event.respondWith(
+    fetch(event.request).then(function(response) {
+      // Cache successful responses for static assets only
+      if (response.ok && (url.pathname.match(/\.(js|css|png|jpg|svg|ico|woff2?)$/) || url.pathname === '/')) {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then(function(cache) {
+          cache.put(event.request, clone);
+        });
+      }
+      return response;
+    }).catch(function() {
+      return caches.match(event.request);
+    })
+  );
 });
