@@ -22,6 +22,8 @@ import {
   ChevronRight,
   Sun,
   Moon,
+  Download,
+  X,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { User, Session } from "@supabase/supabase-js";
