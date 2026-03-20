@@ -11,6 +11,7 @@ import {
   Moon,
   Globe,
   ChevronRight,
+  Download,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -89,6 +90,25 @@ export default function Settings() {
                 <div className="text-left">
                   <p className="font-medium">Language</p>
                   <p className="text-sm text-muted-foreground">English</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            </button>
+          </CardContent>
+        </Card>
+
+        {/* Install App */}
+        <Card className="border-0 shadow-card">
+          <CardContent className="p-0">
+            <button
+              onClick={() => navigate("/install")}
+              className="flex items-center justify-between w-full p-4 hover:bg-muted/50 transition-colors"
+            >
+              <div className="flex items-center space-x-3">
+                <Download className="w-5 h-5 text-primary" />
+                <div className="text-left">
+                  <p className="font-medium">Install App</p>
+                  <p className="text-sm text-muted-foreground">Add to your home screen</p>
                 </div>
               </div>
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
