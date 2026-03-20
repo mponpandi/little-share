@@ -41,6 +41,7 @@ const routes = [
   { path: "/notifications", element: <Notifications /> },
   { path: "/map", element: <MapPage /> },
   { path: "/item/:id", element: <ItemDetail /> },
+  { path: "/install", element: <Install /> },
   { path: "*", element: <NotFound /> },
 ];
 
