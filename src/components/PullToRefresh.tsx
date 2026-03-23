@@ -78,7 +78,7 @@ export function PullToRefresh({ onRefresh, children, className }: PullToRefreshP
     <div
       ref={containerRef}
       className={`overflow-y-auto overscroll-none ${className || ""}`}
-      style={{ touchAction: "pan-down" }}
+      style={{ touchAction: "pan-y" }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
