@@ -22,8 +22,6 @@ import {
   ChevronRight,
   Sun,
   Moon,
-  Download,
-  X,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { User, Session } from "@supabase/supabase-js";
@@ -68,21 +66,6 @@ export default function Dashboard() {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [showInstallBanner, setShowInstallBanner] = useState(false);
-
-  // Show install banner once for non-installed users
-  useEffect(() => {
-    const dismissed = localStorage.getItem("install-banner-dismissed");
-    const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
-    if (!dismissed && !isStandalone) {
-      setShowInstallBanner(true);
-    }
-  }, []);
-
-  const dismissInstallBanner = () => {
-    setShowInstallBanner(false);
-    localStorage.setItem("install-banner-dismissed", "true");
-  };
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -225,24 +208,6 @@ export default function Dashboard() {
       </div>
 
       <div className="px-4 -mt-4 space-y-6">
-        {/* Install Banner */}
-        {showInstallBanner && (
-          <div className="bg-primary/10 border border-primary/20 rounded-2xl p-4 flex items-center gap-3 relative">
-            <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
-              <Download className="h-5 w-5 text-primary" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-sm text-foreground">Install Little Share</p>
-              <p className="text-xs text-muted-foreground">Add to home screen for the best experience</p>
-            </div>
-            <Button size="sm" className="flex-shrink-0 text-xs" onClick={() => navigate("/install")}>
-              Install
-            </Button>
-            <button onClick={dismissInstallBanner} className="absolute top-2 right-2 text-muted-foreground hover:text-foreground">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        )}
         {/* Search Results */}
         {filteredItems && (
           <div className="bg-card rounded-2xl p-4 shadow-card">
